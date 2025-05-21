@@ -1,11 +1,14 @@
 # ruff: noqa: F401
 import logging
 
-import av.logging
-
 from .exceptions import InvalidAccessError, InvalidStateError
-from .mediastreams import AudioStreamTrack, MediaStreamTrack, VideoStreamTrack
-from .rtcconfiguration import RTCConfiguration, RTCIceServer
+from .mediastreams import (
+    AudioStreamTrack,
+    MediaStreamError,
+    MediaStreamTrack,
+    VideoStreamTrack,
+)
+from .rtcconfiguration import RTCBundlePolicy, RTCConfiguration, RTCIceServer
 from .rtcdatachannel import RTCDataChannel, RTCDataChannelParameters
 from .rtcdtlstransport import (
     RTCCertificate,
@@ -49,9 +52,6 @@ from .stats import (
 
 __version__ = "0.0.7"
 
-# Disable PyAV's logging framework as it can lead to thread deadlocks.
-av.logging.restore_default_callback()
-
 # Set default logging handler to avoid "No handler found" warnings.
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
@@ -59,7 +59,9 @@ __all__ = [
     "AudioStreamTrack",
     "InvalidAccessError",
     "InvalidStateError",
+    "MediaStreamError",
     "MediaStreamTrack",
+    "RTCBundlePolicy",
     "RTCCertificate",
     "RTCConfiguration",
     "RTCDataChannel",

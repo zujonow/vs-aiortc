@@ -1,8 +1,7 @@
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from .codecs import get_capabilities
-from .rtcdtlstransport import RTCDtlsTransport
 from .rtcrtpparameters import (
     RTCRtpCodecCapability,
     RTCRtpCodecParameters,
@@ -39,13 +38,12 @@ class RTCRtpTransceiver:
         self.__stopped = False
 
         self._offerDirection: Optional[str] = None
-        self._preferred_codecs: List[RTCRtpCodecCapability] = []
-        self._transport: RTCDtlsTransport = None
+        self._preferred_codecs: list[RTCRtpCodecCapability] = []
 
         # FIXME: this is only used by RTCPeerConnection
         self._bundled = False
-        self._codecs: List[RTCRtpCodecParameters] = []
-        self._headerExtensions: List[RTCRtpHeaderExtensionParameters] = []
+        self._codecs: list[RTCRtpCodecParameters] = []
+        self._headerExtensions: list[RTCRtpHeaderExtensionParameters] = []
 
     @property
     def currentDirection(self) -> Optional[str]:
@@ -100,7 +98,7 @@ class RTCRtpTransceiver:
     def stopped(self) -> bool:
         return self.__stopped
 
-    def setCodecPreferences(self, codecs: List[RTCRtpCodecCapability]) -> None:
+    def setCodecPreferences(self, codecs: list[RTCRtpCodecCapability]) -> None:
         """
         Override the default codec preferences.
 
@@ -114,7 +112,7 @@ class RTCRtpTransceiver:
             self._preferred_codecs = []
 
         capabilities = get_capabilities(self.kind).codecs
-        unique: List[RTCRtpCodecCapability] = []
+        unique: list[RTCRtpCodecCapability] = []
         for codec in reversed(codecs):
             if codec not in capabilities:
                 raise ValueError("Codec is not in capabilities")

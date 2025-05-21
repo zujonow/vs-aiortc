@@ -2,7 +2,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from aioice import Candidate, Connection, ConnectionClosed
 from pyee.asyncio import AsyncIOEventEmitter
@@ -10,12 +10,13 @@ from pyee.asyncio import AsyncIOEventEmitter
 from .exceptions import InvalidStateError
 from .rtcconfiguration import RTCIceServer
 
+# See https://datatracker.ietf.org/doc/html/rfc7064
+# transport is not defined by RFC 7064 and rejected by browsers.
 STUN_REGEX = re.compile(
     r"(?P<scheme>stun|stuns)\:(?P<host>[^?:]+)(\:(?P<port>[0-9]+?))?"
-    # RFC 7064 does not define a "transport" option but some providers
-    # include it, so just ignore it
-    r"(\?transport=.*)?"
+    r"(\?transport=(?P<transport>.*))?"
 )
+# See https://datatracker.ietf.org/doc/html/rfc7065
 TURN_REGEX = re.compile(
     r"(?P<scheme>turn|turns)\:(?P<host>[^?:]+)(\:(?P<port>[0-9]+?))?"
     r"(\?transport=(?P<transport>.*))?"
@@ -92,8 +93,8 @@ def candidate_to_aioice(x: RTCIceCandidate) -> Candidate:
     )
 
 
-def connection_kwargs(servers: List[RTCIceServer]) -> Dict[str, Any]:
-    kwargs: Dict[str, Any] = {}
+def connection_kwargs(servers: list[RTCIceServer]) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {}
 
     for server in servers:
         if isinstance(server.urls, list):
@@ -137,7 +138,7 @@ def connection_kwargs(servers: List[RTCIceServer]) -> Dict[str, Any]:
     return kwargs
 
 
-def parse_stun_turn_uri(uri: str) -> Dict[str, Any]:
+def parse_stun_turn_uri(uri: str) -> dict[str, Any]:
     if uri.startswith("stun"):
         match = STUN_REGEX.fullmatch(uri)
     elif uri.startswith("turn"):
@@ -149,7 +150,7 @@ def parse_stun_turn_uri(uri: str) -> Dict[str, Any]:
         raise ValueError("malformed uri")
 
     # set port
-    parsed: Dict[str, Any] = match.groupdict()
+    parsed: dict[str, Any] = match.groupdict()
     if parsed["port"]:
         parsed["port"] = int(parsed["port"])
     elif parsed["scheme"] in ["stuns", "turns"]:
@@ -162,6 +163,12 @@ def parse_stun_turn_uri(uri: str) -> Dict[str, Any]:
         parsed["transport"] = "udp"
     elif parsed["scheme"] == "turns" and not parsed["transport"]:
         parsed["transport"] = "tcp"
+    elif parsed["scheme"] in ["stun", "stuns"]:
+        if parsed["transport"] is not None:
+            raise ValueError(
+                "malformed uri: " + parsed["scheme"] + " must not contain transport"
+            )
+        del parsed["transport"]
 
     return parsed
 
@@ -174,7 +181,12 @@ class RTCIceGatherer(AsyncIOEventEmitter):
     exchanged in signaling.
     """
 
-    def __init__(self, iceServers: Optional[List[RTCIceServer]] = None) -> None:
+    def __init__(
+        self,
+        iceServers: Optional[list[RTCIceServer]] = None,
+        local_username: Optional[str] = None,
+        local_password: Optional[str] = None,
+    ) -> None:
         super().__init__()
 
         if iceServers is None:
@@ -202,13 +214,13 @@ class RTCIceGatherer(AsyncIOEventEmitter):
             self.__setState("completed")
 
     @classmethod
-    def getDefaultIceServers(cls) -> List[RTCIceServer]:
+    def getDefaultIceServers(cls) -> list[RTCIceServer]:
         """
         Return the list of default :class:`RTCIceServer`.
         """
         return [RTCIceServer("stun:stun.l.google.com:19302")]
 
-    def getLocalCandidates(self) -> List[RTCIceCandidate]:
+    def getLocalCandidates(self) -> list[RTCIceCandidate]:
         """
         Retrieve the list of valid local candidates associated with the ICE
         gatherer.
@@ -294,7 +306,7 @@ class RTCIceTransport(AsyncIOEventEmitter):
                     candidate_to_aioice(candidate)
                 )
 
-    def getRemoteCandidates(self) -> List[RTCIceCandidate]:
+    def getRemoteCandidates(self) -> list[RTCIceCandidate]:
         """
         Retrieve the list of candidates associated with the remote
         :class:`RTCIceTransport`.
@@ -349,7 +361,7 @@ class RTCIceTransport(AsyncIOEventEmitter):
                     self.__setState("failed")
                 return
 
-    def __log_debug(self, msg: str, *args) -> None:
+    def __log_debug(self, msg: str, *args: object) -> None:
         logger.debug(f"RTCIceTransport(%s) {msg}", self.role, *args)
 
     def __setState(self, state: str) -> None:

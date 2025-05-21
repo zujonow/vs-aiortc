@@ -1,6 +1,6 @@
 import math
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from .utils import uint32_add, uint32_gt
 
@@ -34,7 +34,7 @@ class RateControlState(Enum):
 
 class AimdRateControl:
     def __init__(self) -> None:
-        self.avg_max_bitrate_kbps = None
+        self.avg_max_bitrate_kbps: Optional[float] = None
         self.var_max_bitrate_kbps = 0.4
         self.current_bitrate = 30000000
         self.current_bitrate_initialized = False
@@ -166,7 +166,7 @@ class AimdRateControl:
         response_time = self.rtt + 100
         return max(4000, int((avg_packet_size_bits * 1000) / response_time))
 
-    def _update_max_throughput_estimate(self, estimated_throughput_kbps) -> None:
+    def _update_max_throughput_estimate(self, estimated_throughput_kbps: float) -> None:
         alpha = 0.05
         if self.avg_max_bitrate_kbps is None:
             self.avg_max_bitrate_kbps = estimated_throughput_kbps
@@ -348,7 +348,7 @@ class OveruseEstimator:
         self._offset = 0.0
         self.previous_offset = 0.0
         self.slope = 1 / 64
-        self.ts_delta_hist: List[float] = []
+        self.ts_delta_hist: list[float] = []
 
         self.avg_noise = 0.0
         self.var_noise = 50.0
@@ -367,7 +367,7 @@ class OveruseEstimator:
         size_delta: int,
         current_hypothesis: BandwidthUsage,
         now_ms: int,
-    ):
+    ) -> None:
         min_frame_period = self.update_min_frame_period(timestamp_delta_ms)
         t_ts_delta = time_delta_ms - timestamp_delta_ms
         fs_delta = size_delta
@@ -451,7 +451,7 @@ class RateBucket:
         self.count = count
         self.value = value
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return self.count == other.count and self.value == other.value
 
 
@@ -517,11 +517,11 @@ class RemoteBitrateEstimator:
         self.detector = OveruseDetector()
         self.rate_control = AimdRateControl()
         self.last_update_ms: Optional[int] = None
-        self.ssrcs: Dict[int, int] = {}
+        self.ssrcs: dict[int, int] = {}
 
     def add(
         self, arrival_time_ms: int, abs_send_time: int, payload_size: int, ssrc: int
-    ) -> Optional[Tuple[int, List[int]]]:
+    ) -> Optional[tuple[int, list[int]]]:
         timestamp = abs_send_time << 8
         update_estimate = False
 
