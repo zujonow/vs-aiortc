@@ -92,33 +92,6 @@ The easiest way to install ``vsaiortc`` is to run:
 
     pip install vsaiortc
 
-Building from source
---------------------
-
-If there are no wheels for your system or if you wish to build aiortc from
-source you will need a couple of libraries installed on your system:
-
-- Opus for audio encoding / decoding
-- LibVPX for video encoding / decoding
-
-Linux
-.....
-
-On Debian/Ubuntu run:
-
-.. code:: bash
-
-    apt install libopus-dev libvpx-dev
-
-OS X
-....
-
-On OS X run:
-
-.. code:: bash
-
-    brew install opus libvpx
-
 License
 -------
 
