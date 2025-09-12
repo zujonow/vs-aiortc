@@ -3,6 +3,46 @@ Changelog
 
 .. currentmodule:: vsaiortc
 
+1.13.0
+------
+
+ * Add support for `G.722` audio codec.
+ * Handle undecodable VP8 packages as was done prior to release 1.12.0.
+ * Limit the number of threads used for VP8 encoding as was done prior to
+   release 1.12.0.
+ * Allow calling :meth:`RTCPeerConnection.setLocalDescription` with no argument
+   to implicitly create an offer or answer as needed.
+ * Allow calling :meth:`RTCPeerConnection.addIceCandidate` with `None` argument
+   to signal remote end-of-candidates.
+ * Support creating offers without media or data channels.
+ * Reject STUN URLs containing a "transport" query parameter.
+ * Ensure the `webcam` example shuts down cleanly on `KeyboardInterrupt`.
+
+1.12.0
+------
+
+ * Use PyAV to perform Opus + VP8 encoding and decoding. This means `aiortc`
+   is now pure Python.
+ * Allow configuring the media-bundling policy using
+   :attr:`RTCConfiguration.bundlePolicy`.
+ * Fix reversed track negotiated media ID (`mid`) when using multiple
+   transceivers of the same kind.
+ * Fix the :attr:`RTCIceServer.urls` typing to accept `List[str]` in addition
+   to `str`.
+ * Fix octet count and packet count overflow in :class:`RTCRtpSender` when
+   sending RTCP sender reports.
+ * Fix :meth:`RTCPeerConnection.addIceCandidate` when handling candidates
+   with and m-line index and no media ID.
+
+1.11.0
+------
+
+ * Fix decoding of RTX retransmission packets.
+ * Drop support for obsolete `h264_omx` codec.
+ * Require PyAV 14.x to support recent FFmpeg versions.
+ * Require pyee 13.x for better typing support.
+ * Require pyOpenSSL 25.x and fix deprecation warnings.
+
 1.10.1
 ------
 

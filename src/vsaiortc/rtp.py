@@ -3,7 +3,7 @@ import os
 import struct
 from dataclasses import dataclass, field
 from struct import pack, unpack, unpack_from
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 from av import AudioFrame
 
@@ -96,7 +96,7 @@ class HeaderExtensionsMap:
                 values.transport_sequence_number = unpack("!H", x_value)[0]
         return values
 
-    def set(self, values: HeaderExtensions):
+    def set(self, values: HeaderExtensions) -> tuple[int, bytes]:
         extensions = []
         if values.mid is not None and self.__ids.mid:
             extensions.append((self.__ids.mid, values.mid.encode("utf8")))
@@ -170,7 +170,7 @@ def pack_rtcp_packet(packet_type: int, count: int, payload: bytes) -> bytes:
     return pack("!BBH", (2 << 6) | count, packet_type, len(payload) // 4) + payload
 
 
-def pack_remb_fci(bitrate: int, ssrcs: List[int]) -> bytes:
+def pack_remb_fci(bitrate: int, ssrcs: list[int]) -> bytes:
     """
     Pack the FCI for a Receiver Estimated Maximum Bitrate report.
 
@@ -190,7 +190,7 @@ def pack_remb_fci(bitrate: int, ssrcs: List[int]) -> bytes:
     return data
 
 
-def unpack_remb_fci(data: bytes) -> Tuple[int, List[int]]:
+def unpack_remb_fci(data: bytes) -> tuple[int, list[int]]:
     """
     Unpack the FCI for a Receiver Estimated Maximum Bitrate report.
 
@@ -225,7 +225,7 @@ def padl(length: int) -> int:
 
 def unpack_header_extensions(
     extension_profile: int, extension_value: bytes
-) -> List[Tuple[int, bytes]]:
+) -> list[tuple[int, bytes]]:
     """
     Parse header extensions according to RFC 5285.
     """
@@ -271,7 +271,7 @@ def unpack_header_extensions(
     return extensions
 
 
-def pack_header_extensions(extensions: List[Tuple[int, bytes]]) -> Tuple[int, bytes]:
+def pack_header_extensions(extensions: list[tuple[int, bytes]]) -> tuple[int, bytes]:
     """
     Serialize header extensions according to RFC 5285.
     """
@@ -350,7 +350,7 @@ class RtcpReceiverInfo:
         return data
 
     @classmethod
-    def parse(cls, data: bytes):
+    def parse(cls, data: bytes) -> "RtcpReceiverInfo":
         ssrc, fraction_lost = unpack("!LB", data[0:5])
         packets_lost = unpack_packets_lost(data[5:8])
         highest_sequence, jitter, lsr, dlsr = unpack("!LLLL", data[8:])
@@ -382,7 +382,7 @@ class RtcpSenderInfo:
         )
 
     @classmethod
-    def parse(cls, data: bytes):
+    def parse(cls, data: bytes) -> "RtcpSenderInfo":
         ntp_timestamp, rtp_timestamp, packet_count, octet_count = unpack("!QLLL", data)
         return cls(
             ntp_timestamp=ntp_timestamp,
@@ -395,19 +395,19 @@ class RtcpSenderInfo:
 @dataclass
 class RtcpSourceInfo:
     ssrc: int
-    items: List[Tuple[Any, bytes]]
+    items: list[tuple[Any, bytes]]
 
 
 @dataclass
 class RtcpByePacket:
-    sources: List[int]
+    sources: list[int]
 
     def __bytes__(self) -> bytes:
         payload = b"".join([pack("!L", ssrc) for ssrc in self.sources])
         return pack_rtcp_packet(RTCP_BYE, len(self.sources), payload)
 
     @classmethod
-    def parse(cls, data: bytes, count: int):
+    def parse(cls, data: bytes, count: int) -> "RtcpByePacket":
         if len(data) < 4 * count:
             raise ValueError("RTCP bye length is invalid")
         if count > 0:
@@ -433,7 +433,7 @@ class RtcpPsfbPacket:
         return pack_rtcp_packet(RTCP_PSFB, self.fmt, payload)
 
     @classmethod
-    def parse(cls, data: bytes, fmt: int):
+    def parse(cls, data: bytes, fmt: int) -> "RtcpPsfbPacket":
         if len(data) < 8:
             raise ValueError("RTCP payload-specific feedback length is invalid")
 
@@ -445,7 +445,7 @@ class RtcpPsfbPacket:
 @dataclass
 class RtcpRrPacket:
     ssrc: int
-    reports: List[RtcpReceiverInfo] = field(default_factory=list)
+    reports: list[RtcpReceiverInfo] = field(default_factory=list)
 
     def __bytes__(self) -> bytes:
         payload = pack("!L", self.ssrc)
@@ -454,7 +454,7 @@ class RtcpRrPacket:
         return pack_rtcp_packet(RTCP_RR, len(self.reports), payload)
 
     @classmethod
-    def parse(cls, data: bytes, count: int):
+    def parse(cls, data: bytes, count: int) -> "RtcpRrPacket":
         if len(data) != 4 + 24 * count:
             raise ValueError("RTCP receiver report length is invalid")
 
@@ -478,7 +478,7 @@ class RtcpRtpfbPacket:
     media_ssrc: int
 
     # generick NACK
-    lost: List[int] = field(default_factory=list)
+    lost: list[int] = field(default_factory=list)
 
     def __bytes__(self) -> bytes:
         payload = pack("!LL", self.ssrc, self.media_ssrc)
@@ -497,7 +497,7 @@ class RtcpRtpfbPacket:
         return pack_rtcp_packet(RTCP_RTPFB, self.fmt, payload)
 
     @classmethod
-    def parse(cls, data: bytes, fmt: int):
+    def parse(cls, data: bytes, fmt: int) -> "RtcpRtpfbPacket":
         if len(data) < 8 or len(data) % 4:
             raise ValueError("RTCP RTP feedback length is invalid")
 
@@ -514,7 +514,7 @@ class RtcpRtpfbPacket:
 
 @dataclass
 class RtcpSdesPacket:
-    chunks: List[RtcpSourceInfo] = field(default_factory=list)
+    chunks: list[RtcpSourceInfo] = field(default_factory=list)
 
     def __bytes__(self) -> bytes:
         payload = b""
@@ -528,7 +528,7 @@ class RtcpSdesPacket:
         return pack_rtcp_packet(RTCP_SDES, len(self.chunks), payload)
 
     @classmethod
-    def parse(cls, data: bytes, count: int):
+    def parse(cls, data: bytes, count: int) -> "RtcpSdesPacket":
         pos = 0
         chunks = []
         for r in range(count):
@@ -558,7 +558,7 @@ class RtcpSdesPacket:
 class RtcpSrPacket:
     ssrc: int
     sender_info: RtcpSenderInfo
-    reports: List[RtcpReceiverInfo] = field(default_factory=list)
+    reports: list[RtcpReceiverInfo] = field(default_factory=list)
 
     def __bytes__(self) -> bytes:
         payload = pack("!L", self.ssrc)
@@ -568,7 +568,7 @@ class RtcpSrPacket:
         return pack_rtcp_packet(RTCP_SR, len(self.reports), payload)
 
     @classmethod
-    def parse(cls, data: bytes, count: int):
+    def parse(cls, data: bytes, count: int) -> "RtcpSrPacket":
         if len(data) != 24 + 24 * count:
             raise ValueError("RTCP sender report length is invalid")
 
@@ -594,9 +594,9 @@ AnyRtcpPacket = Union[
 
 class RtcpPacket:
     @classmethod
-    def parse(cls, data: bytes) -> List[AnyRtcpPacket]:
+    def parse(cls, data: bytes) -> list[AnyRtcpPacket]:
         pos = 0
-        packets = []
+        packets: list[AnyRtcpPacket] = []
 
         while pos < len(data):
             if len(data) < pos + RTCP_HEADER_LENGTH:
@@ -655,7 +655,7 @@ class RtpPacket:
         self.sequence_number = sequence_number
         self.timestamp = timestamp
         self.ssrc = ssrc
-        self.csrc: List[int] = []
+        self.csrc: list[int] = []
         self.extensions = HeaderExtensions()
         self.payload = payload
         self.padding_size = 0
@@ -668,7 +668,9 @@ class RtpPacket:
         )
 
     @classmethod
-    def parse(cls, data: bytes, extensions_map=HeaderExtensionsMap()):
+    def parse(
+        cls, data: bytes, extensions_map: HeaderExtensionsMap = HeaderExtensionsMap()
+    ) -> "RtpPacket":
         if len(data) < RTP_HEADER_LENGTH:
             raise ValueError(
                 f"RTP packet length is less than {RTP_HEADER_LENGTH} bytes"
@@ -721,7 +723,9 @@ class RtpPacket:
 
         return packet
 
-    def serialize(self, extensions_map=HeaderExtensionsMap()) -> bytes:
+    def serialize(
+        self, extensions_map: HeaderExtensionsMap = HeaderExtensionsMap()
+    ) -> bytes:
         extension_profile, extension_value = extensions_map.set(self.extensions)
         has_extension = bool(extension_value)
 

@@ -6,14 +6,14 @@ import logging
 import os
 import traceback
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Type, TypeVar
+from typing import Optional, Protocol, Type, TypeVar, Union
 
 import pylibsrtp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from OpenSSL import SSL, crypto
+from OpenSSL import SSL
 from pyee.asyncio import AsyncIOEventEmitter
 from pylibsrtp import Policy, Session
 
@@ -34,15 +34,17 @@ from .rtp import (
 from .stats import RTCStatsReport, RTCTransportStats
 
 CERTIFICATE_T = TypeVar("CERTIFICATE_T", bound="RTCCertificate")
+K = TypeVar("K")
+V = TypeVar("V")
 
 logger = logging.getLogger(__name__)
 
 # Mapping of supported `RTCDtlsFingerprint` algorithms to the
-# corresponding argument for `x509.digest`.
+# corresponding argument for `x509.Certificate.fingerprint`.
 X509_DIGEST_ALGORITHMS = {
-    "sha-256": "SHA256",
-    "sha-384": "SHA384",
-    "sha-512": "SHA512",
+    "sha-256": hashes.SHA256(),
+    "sha-384": hashes.SHA384(),
+    "sha-512": hashes.SHA512(),
 }
 
 
@@ -82,7 +84,7 @@ SRTP_AES128_CM_SHA1_80 = SRTPProtectionProfile(
 )
 
 # AES-GCM may not be available depending on how libsrtp2 was built.
-SRTP_PROFILES: List[SRTPProtectionProfile] = []
+SRTP_PROFILES: list[SRTPProtectionProfile] = []
 for srtp_profile in [
     SRTP_AEAD_AES_256_GCM,
     SRTP_AEAD_AES_128_GCM,
@@ -96,8 +98,9 @@ for srtp_profile in [
         SRTP_PROFILES.append(srtp_profile)
 
 
-def certificate_digest(x509: crypto.X509, algorithm: str) -> str:
-    return x509.digest(X509_DIGEST_ALGORITHMS[algorithm]).decode("ascii").upper()
+def certificate_digest(certificate: x509.Certificate, algorithm: str) -> str:
+    hexstring = certificate.fingerprint(X509_DIGEST_ALGORITHMS[algorithm]).hex().upper()
+    return ":".join(hexstring[x : x + 2] for x in range(0, len(hexstring), 2))
 
 
 def generate_certificate(key: ec.EllipticCurvePrivateKey) -> x509.Certificate:
@@ -153,7 +156,7 @@ class RTCCertificate:
     :func:`generateCertificate`.
     """
 
-    def __init__(self, key: crypto.PKey, cert: crypto.X509) -> None:
+    def __init__(self, key: ec.EllipticCurvePrivateKey, cert: x509.Certificate) -> None:
         self._key = key
         self._cert = cert
 
@@ -162,9 +165,9 @@ class RTCCertificate:
         """
         The date and time after which the certificate will be considered invalid.
         """
-        return self._cert.to_cryptography().not_valid_after_utc
+        return self._cert.not_valid_after_utc
 
-    def getFingerprints(self) -> List[RTCDtlsFingerprint]:
+    def getFingerprints(self) -> list[RTCDtlsFingerprint]:
         """
         Returns the list of certificate fingerprints, one of which is computed
         with the digest algorithm used in the certificate signature.
@@ -186,13 +189,10 @@ class RTCCertificate:
         """
         key = ec.generate_private_key(ec.SECP256R1(), default_backend())
         cert = generate_certificate(key)
-        return cls(
-            key=crypto.PKey.from_cryptography_key(key),
-            cert=crypto.X509.from_cryptography(cert),
-        )
+        return cls(key=key, cert=cert)
 
     def _create_ssl_context(
-        self, srtp_profiles: List[SRTPProtectionProfile]
+        self, srtp_profiles: list[SRTPProtectionProfile]
     ) -> SSL.Context:
         ctx = SSL.Context(SSL.DTLS_METHOD)
         ctx.set_verify(
@@ -215,11 +215,29 @@ class RTCDtlsParameters:
     DTLS configuration.
     """
 
-    fingerprints: List[RTCDtlsFingerprint] = field(default_factory=list)
+    fingerprints: list[RTCDtlsFingerprint] = field(default_factory=list)
     "List of :class:`RTCDtlsFingerprint`, one fingerprint for each certificate."
 
     role: str = "auto"
     "The DTLS role, with a default of auto."
+
+
+class DataReceiver(Protocol):
+    async def _handle_data(self, data: bytes) -> None: ...
+
+
+class RtpReceiver(Protocol):
+    def _handle_disconnect(self) -> None: ...
+    async def _handle_rtcp_packet(self, packet: AnyRtcpPacket) -> None: ...
+    async def _handle_rtp_packet(
+        self, packet: RtpPacket, arrival_time_ms: int
+    ) -> None: ...
+
+
+class RtpSender(Protocol):
+    _ssrc: int
+
+    async def _handle_rtcp_packet(self, packet: AnyRtcpPacket) -> None: ...
 
 
 class RtpRouter:
@@ -230,19 +248,19 @@ class RtpRouter:
     """
 
     def __init__(self) -> None:
-        self.receivers: Set = set()
-        self.senders: Dict[int, Any] = {}
-        self.mid_table: Dict[str, Any] = {}
-        self.ssrc_table: Dict[int, Any] = {}
-        self.payload_type_table: Dict[int, Set] = {}
+        self.receivers: set[RtpReceiver] = set()
+        self.senders: dict[int, RtpSender] = {}
+        self.mid_table: dict[str, RtpReceiver] = {}
+        self.ssrc_table: dict[int, RtpReceiver] = {}
+        self.payload_type_table: dict[int, set[RtpReceiver]] = {}
 
     def register_receiver(
         self,
-        receiver,
-        ssrcs: List[int],
-        payload_types: List[int],
+        receiver: RtpReceiver,
+        ssrcs: list[int],
+        payload_types: list[int],
         mid: Optional[str] = None,
-    ):
+    ) -> None:
         self.receivers.add(receiver)
         if mid is not None:
             self.mid_table[mid] = receiver
@@ -253,13 +271,13 @@ class RtpRouter:
                 self.payload_type_table[payload_type] = set()
             self.payload_type_table[payload_type].add(receiver)
 
-    def register_sender(self, sender, ssrc: int) -> None:
+    def register_sender(self, sender: RtpSender, ssrc: int) -> None:
         self.senders[ssrc] = sender
 
-    def route_rtcp(self, packet: AnyRtcpPacket) -> Set:
-        recipients = set()
+    def route_rtcp(self, packet: AnyRtcpPacket) -> set[Union[RtpReceiver, RtpSender]]:
+        recipients: set[Union[RtpReceiver, RtpSender]] = set()
 
-        def add_recipient(recipient) -> None:
+        def add_recipient(recipient: Optional[Union[RtpReceiver, RtpSender]]) -> None:
             if recipient is not None:
                 recipients.add(recipient)
 
@@ -287,7 +305,7 @@ class RtpRouter:
 
         return recipients
 
-    def route_rtp(self, packet: RtpPacket) -> Optional[Any]:
+    def route_rtp(self, packet: RtpPacket) -> Optional[RtpReceiver]:
         ssrc_receiver = self.ssrc_table.get(packet.ssrc)
         pt_receivers = self.payload_type_table.get(packet.payload_type, set())
 
@@ -304,17 +322,17 @@ class RtpRouter:
         # discard the packet
         return None
 
-    def unregister_receiver(self, receiver) -> None:
+    def unregister_receiver(self, receiver: RtpReceiver) -> None:
         self.receivers.discard(receiver)
         self.__discard(self.mid_table, receiver)
         self.__discard(self.ssrc_table, receiver)
         for pt, receivers in self.payload_type_table.items():
             receivers.discard(receiver)
 
-    def unregister_sender(self, sender) -> None:
+    def unregister_sender(self, sender: RtpSender) -> None:
         self.__discard(self.senders, sender)
 
-    def __discard(self, d: Dict, value: Any) -> None:
+    def __discard(self, d: dict[K, V], value: V) -> None:
         for k, v in list(d.items()):
             if v == value:
                 d.pop(k)
@@ -331,14 +349,14 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
     """
 
     def __init__(
-        self, transport: RTCIceTransport, certificates: List[RTCCertificate]
+        self, transport: RTCIceTransport, certificates: list[RTCCertificate]
     ) -> None:
         assert len(certificates) == 1
         certificate = certificates[0]
 
         super().__init__()
         self.encrypted = False
-        self._data_receiver = None
+        self._data_receiver: Optional[DataReceiver] = None
         self._role = "auto"
         self._rtp_header_extensions_map = rtp.HeaderExtensionsMap()
         self._rtp_router = RtpRouter()
@@ -372,7 +390,7 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
         return str(self._state)[6:].lower()
 
     @property
-    def transport(self):
+    def transport(self) -> RTCIceTransport:
         """
         The associated :class:`RTCIceTransport` instance.
         """
@@ -388,38 +406,10 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
             fingerprints=self.__local_certificate.getFingerprints()
         )
 
-    async def start(self, remoteParameters: RTCDtlsParameters) -> None:
+    async def _do_handshake(self) -> None:
         """
-        Start DTLS transport negotiation with the parameters of the remote
-        DTLS transport.
-
-        :param remoteParameters: An :class:`RTCDtlsParameters`.
+        Attempt to complete the DTLS handshake.
         """
-        assert self._state == State.NEW
-        assert len(remoteParameters.fingerprints)
-
-        # For WebRTC, the DTLS role is explicitly determined as part of the
-        # offer / answer exchange.
-        #
-        # For ORTC however, we determine the DTLS role based on the ICE role.
-        if self._role == "auto":
-            if self.transport.role == "controlling":
-                self._set_role("server")
-            else:
-                self._set_role("client")
-
-        # Initialise SSL.
-        self._ssl = SSL.Connection(
-            self.__local_certificate._create_ssl_context(
-                srtp_profiles=self._srtp_profiles
-            )
-        )
-        if self._role == "server":
-            self._ssl.set_accept_state()
-        else:
-            self._ssl.set_connect_state()
-
-        self._set_state(State.CONNECTING)
         try:
             while not self.encrypted:
                 try:
@@ -438,24 +428,30 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
             self._set_state(State.FAILED)
             return
 
-        # Check remote fingerprints. There must be at least one fingerprint
-        # with a supported algorithm, and all supported fingerprints must
-        # match.
-        x509 = self._ssl.get_peer_certificate()
+    def _validate_peer_identity(self, remoteParameters: RTCDtlsParameters) -> None:
+        """
+        Check remote fingerprints. There must be at least one fingerprint
+        with a supported algorithm, and all supported fingerprints must
+        match.
+        """
+        certificate = self._ssl.get_peer_certificate(as_cryptography=True)
         fingerprint_supported = 0
         fingerprint_valid = 0
         for f in remoteParameters.fingerprints:
             algorithm = f.algorithm.lower()
             if algorithm in X509_DIGEST_ALGORITHMS:
                 fingerprint_supported += 1
-                if f.value.upper() == certificate_digest(x509, algorithm):
+                if f.value.upper() == certificate_digest(certificate, algorithm):
                     fingerprint_valid += 1
         if not fingerprint_supported or fingerprint_valid != fingerprint_supported:
             self.__log_debug("x DTLS handshake failed (fingerprint mismatch)")
             self._set_state(State.FAILED)
             return
 
-        # generate keying material
+    def _setup_srtp(self) -> None:
+        """
+        Extract the SRTP keying material and setup the SRTP sessions.
+        """
         openssl_profile = self._ssl.get_selected_srtp_profile()
         for srtp_profile in self._srtp_profiles:
             if srtp_profile.openssl_profile == openssl_profile:
@@ -496,6 +492,53 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
         tx_policy.allow_repeat_tx = True
         tx_policy.window_size = 1024
         self._tx_srtp = Session(tx_policy)
+
+    async def start(self, remoteParameters: RTCDtlsParameters) -> None:
+        """
+        Start DTLS transport negotiation with the parameters of the remote
+        DTLS transport.
+
+        :param remoteParameters: An :class:`RTCDtlsParameters`.
+        """
+        assert self._state == State.NEW
+        assert len(remoteParameters.fingerprints)
+
+        # For WebRTC, the DTLS role is explicitly determined as part of the
+        # offer / answer exchange.
+        #
+        # For ORTC however, we determine the DTLS role based on the ICE role.
+        if self._role == "auto":
+            if self.transport.role == "controlling":
+                self._set_role("server")
+            else:
+                self._set_role("client")
+
+        # Initialise SSL.
+        self._ssl = SSL.Connection(
+            self.__local_certificate._create_ssl_context(
+                srtp_profiles=self._srtp_profiles
+            )
+        )
+        if self._role == "server":
+            self._ssl.set_accept_state()
+        else:
+            self._ssl.set_connect_state()
+
+        # Start the DTLS handshake.
+        self._set_state(State.CONNECTING)
+        await self._do_handshake()
+        if self._state == State.FAILED:
+            return
+
+        # Validate the peer identity.
+        self._validate_peer_identity(remoteParameters)
+        if self._state == State.FAILED:
+            return
+
+        # Generate keying material.
+        self._setup_srtp()
+        if self._state == State.FAILED:
+            return
 
         # start data pump
         self.__log_debug("- DTLS handshake complete")
@@ -628,12 +671,12 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
             except pylibsrtp.Error as exc:
                 self.__log_debug("x SRTP unprotect failed: %s", exc)
 
-    def _register_data_receiver(self, receiver) -> None:
+    def _register_data_receiver(self, receiver: DataReceiver) -> None:
         assert self._data_receiver is None
         self._data_receiver = receiver
 
     def _register_rtp_receiver(
-        self, receiver, parameters: RTCRtpReceiveParameters
+        self, receiver: RtpReceiver, parameters: RTCRtpReceiveParameters
     ) -> None:
         ssrcs = set()
         for encoding in parameters.encodings:
@@ -647,7 +690,9 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
             mid=parameters.muxId,
         )
 
-    def _register_rtp_sender(self, sender, parameters: RTCRtpSendParameters) -> None:
+    def _register_rtp_sender(
+        self, sender: RtpSender, parameters: RTCRtpSendParameters
+    ) -> None:
         self._rtp_header_extensions_map.configure(parameters)
         self._rtp_router.register_sender(sender, ssrc=sender._ssrc)
 
@@ -679,14 +724,14 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
             self._state = state
             self.emit("statechange")
 
-    def _unregister_data_receiver(self, receiver) -> None:
+    def _unregister_data_receiver(self, receiver: DataReceiver) -> None:
         if self._data_receiver == receiver:
             self._data_receiver = None
 
-    def _unregister_rtp_receiver(self, receiver) -> None:
+    def _unregister_rtp_receiver(self, receiver: RtpReceiver) -> None:
         self._rtp_router.unregister_receiver(receiver)
 
-    def _unregister_rtp_sender(self, sender) -> None:
+    def _unregister_rtp_sender(self, sender: RtpSender) -> None:
         self._rtp_router.unregister_sender(sender)
 
     async def _write_ssl(self) -> None:
@@ -702,8 +747,8 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
             self.__tx_bytes += len(data)
             self.__tx_packets += 1
 
-    def __log_debug(self, msg: str, *args) -> None:
+    def __log_debug(self, msg: str, *args: object) -> None:
         logger.debug(f"RTCDtlsTransport(%s) {msg}", self._role, *args)
 
-    def __log_warning(self, msg: str, *args) -> None:
+    def __log_warning(self, msg: str, *args: object) -> None:
         logger.warning(f"RTCDtlsTransport(%s) {msg}", self._role, *args)

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["cffi>=1.0.0", "setuptools", "wheel"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "vsaiortc"
 description = "An implementation of WebRTC and ORTC"
 readme = "README.rst"
 requires-python = ">=3.9"
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
 authors = [
     { name = "Yash Chudasama", email = "yash@videosdk.live" },
     { name = "Ankit Chotaliya", email = "ankit@videosdk.live" }
@@ -16,7 +16,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
@@ -27,14 +26,13 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "aioice>=0.9.0,<1.0.0",
-    "av>=9.0.0,<14.0.0",
-    "cffi>=1.0.0",
-    "cryptography>=42.0.0",
+    "aioice>=0.10.1,<1.0.0",
+    "av>=14.0.0,<15.0.0",
+    "cryptography>=44.0.0",
     "google-crc32c>=1.1",
-    "pyee>=9.0.0",
+    "pyee>=13.0.0",
     "pylibsrtp>=0.10.0",
-    "pyopenssl>=24.0.0",
+    "pyopenssl>=25.0.0",
 ]
 dynamic = ["version"]
 
@@ -59,8 +57,8 @@ source = ["vsaiortc"]
 [tool.mypy]
 disallow_untyped_calls = true
 disallow_untyped_decorators = true
+disallow_untyped_defs = true
 ignore_missing_imports = true
-mypy_path = "stubs"
 strict_optional = false
 warn_redundant_casts = true
 warn_unused_ignores = true
@@ -77,5 +75,4 @@ select = [
 version = {attr = "vsaiortc.__version__"}
 
 [tool.setuptools.packages.find]
-exclude = ["_cffi_src"]
 where = ["src"]
