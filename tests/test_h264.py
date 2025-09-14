@@ -7,7 +7,6 @@ from vsaiortc.codecs import get_decoder, get_encoder
 from vsaiortc.codecs.h264 import H264Decoder, H264Encoder, H264PayloadDescriptor
 from vsaiortc.jitterbuffer import JitterFrame
 from vsaiortc.rtcrtpparameters import RTCRtpCodecParameters
-from av import Packet
 
 from .codecs import CodecTestCase
 from .utils import load

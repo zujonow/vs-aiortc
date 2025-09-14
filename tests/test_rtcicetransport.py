@@ -4,6 +4,7 @@ from typing import Optional
 import aioice.ice
 import aioice.stun
 from aioice import ConnectionClosed
+
 from vsaiortc.exceptions import InvalidStateError
 from vsaiortc.rtcconfiguration import RTCIceServer
 from vsaiortc.rtcicetransport import (

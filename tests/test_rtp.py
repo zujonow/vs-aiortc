@@ -3,6 +3,8 @@ import math
 import sys
 from collections.abc import Callable
 
+from av import AudioFrame
+
 from vsaiortc import rtp
 from vsaiortc.rtcrtpparameters import RTCRtpHeaderExtensionParameters, RTCRtpParameters
 from vsaiortc.rtp import (
@@ -24,7 +26,6 @@ from vsaiortc.rtp import (
     unwrap_rtx,
     wrap_rtx,
 )
-from av import AudioFrame
 
 from .utils import TestCase, load
 

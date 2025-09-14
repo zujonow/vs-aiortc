@@ -462,7 +462,7 @@ class MediaRecorder:
             else:
                 stream = self.__container.add_stream("libx264", rate=30)
                 stream.pix_fmt = "yuv420p"
-                
+
         # print("track adding ", track.id, track.kind)
         context = MediaRecorderContext(stream)
         self.__tracks[track] = context

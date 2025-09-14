@@ -1,6 +1,8 @@
 from collections.abc import Iterator
 from unittest import TestCase
 
+from numpy import random
+
 from vsaiortc.rate import (
     AimdRateControl,
     BandwidthUsage,
@@ -12,7 +14,6 @@ from vsaiortc.rate import (
     RateCounter,
     RemoteBitrateEstimator,
 )
-from numpy import random
 
 TIMESTAMP_GROUP_LENGTH_US = 5000
 MIN_STEP_US = 20

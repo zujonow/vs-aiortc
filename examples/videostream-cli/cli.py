@@ -5,6 +5,8 @@ import math
 
 import cv2
 import numpy
+from av import VideoFrame
+
 from vsaiortc import (
     RTCIceCandidate,
     RTCPeerConnection,
@@ -13,7 +15,6 @@ from vsaiortc import (
 )
 from vsaiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder
 from vsaiortc.contrib.signaling import BYE, add_signaling_arguments, create_signaling
-from av import VideoFrame
 
 
 class FlagVideoStreamTrack(VideoStreamTrack):

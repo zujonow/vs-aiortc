@@ -51,7 +51,10 @@ logger = logging.getLogger(__name__)
 
 
 def decoder_worker(
-    loop: asyncio.AbstractEventLoop, input_q: queue.Queue, output_q: asyncio.Queue, current_frame_queue: asyncio.Queue
+    loop: asyncio.AbstractEventLoop,
+    input_q: queue.Queue,
+    output_q: asyncio.Queue,
+    current_frame_queue: asyncio.Queue,
 ) -> None:
     codec_name = None
     decoder = None
@@ -219,7 +222,7 @@ class RemoteStreamTrack(MediaStreamTrack):
             raise MediaStreamError
         return frame
 
-    async def current_frame(self):
+    async def current_frame(self) -> Frame:
         return await self._current_frame_queue.get()
 
 
@@ -358,7 +361,6 @@ class RTCRtpReceiver:
                     ssrc=ssrc,
                     kind=self.__kind,
                     transportId=self.transport._stats_id,
-                    codecName=codec.name,
                     # RTCReceivedRtpStreamStats
                     packetsReceived=stream.packets_received,
                     packetsLost=stream.packets_lost,

@@ -3,6 +3,8 @@ import fractions
 import time
 from unittest import TestCase
 
+from av.packet import Packet
+
 from vsaiortc.mediastreams import (
     VIDEO_CLOCK_RATE,
     VIDEO_PTIME,
@@ -11,7 +13,6 @@ from vsaiortc.mediastreams import (
     MediaStreamTrack,
     VideoStreamTrack,
 )
-from av.packet import Packet
 
 
 class VideoPacketStreamTrack(MediaStreamTrack):

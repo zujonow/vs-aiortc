@@ -1,13 +1,14 @@
 import fractions
 from typing import Optional
 
+from av import AudioFrame, VideoFrame
+from av.frame import Frame
+from av.packet import Packet
+
 from vsaiortc.codecs import depayload, get_decoder, get_encoder
 from vsaiortc.jitterbuffer import JitterFrame
 from vsaiortc.mediastreams import AUDIO_PTIME, VIDEO_TIME_BASE
 from vsaiortc.rtcrtpparameters import RTCRtpCodecParameters
-from av import AudioFrame, VideoFrame
-from av.frame import Frame
-from av.packet import Packet
 
 from .utils import TestCase
 

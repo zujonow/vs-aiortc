@@ -3,6 +3,7 @@ from struct import pack
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+from tests.test_mediastreams import VideoPacketStreamTrack
 from vsaiortc import MediaStreamTrack
 from vsaiortc.codecs import PCMU_CODEC
 from vsaiortc.exceptions import InvalidStateError
@@ -28,8 +29,6 @@ from vsaiortc.rtp import (
     pack_remb_fci,
 )
 from vsaiortc.stats import RTCStatsReport
-
-from tests.test_mediastreams import VideoPacketStreamTrack
 
 from .utils import ClosedDtlsTransport, asynctest, dummy_dtls_transport_pair
 

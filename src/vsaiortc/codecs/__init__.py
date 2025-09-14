@@ -11,7 +11,8 @@ from ..rtcrtpparameters import (
 )
 from .base import Decoder, Encoder
 from .g711 import PcmaDecoder, PcmaEncoder, PcmuDecoder, PcmuEncoder
-from .g722 import G722Decoder, G722Encoder
+from .g722 import G722Decoder as G722Decoder
+from .g722 import G722Encoder
 from .h264 import H264Decoder, H264Encoder, h264_depayload
 from .opus import OpusDecoder, OpusEncoder
 from .vpx import Vp8Decoder, Vp8Encoder, vp8_depayload
@@ -141,8 +142,7 @@ def get_capabilities(kind: str) -> RTCRtpCapabilities:
 
     headerExtensions = []
     for extension in HEADER_EXTENSIONS[kind]:
-        headerExtensions.append(
-            RTCRtpHeaderExtensionCapability(uri=extension.uri))
+        headerExtensions.append(RTCRtpHeaderExtensionCapability(uri=extension.uri))
     return RTCRtpCapabilities(codecs=codecs, headerExtensions=headerExtensions)
 
 
@@ -152,7 +152,7 @@ def get_decoder(codec: RTCRtpCodecParameters) -> Decoder:
     if mimeType == "audio/opus":
         if "ptime" not in codec.parameters:
             codec.parameters["ptime"] = 20
-        return OpusDecoder(codec.parameters["ptime"]/1000, codec.clockRate)
+        return OpusDecoder(int(codec.parameters["ptime"]) / 1000, codec.clockRate)
     elif mimeType == "audio/pcma":
         return PcmaDecoder()
     elif mimeType == "audio/pcmu":

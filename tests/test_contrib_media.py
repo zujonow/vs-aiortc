@@ -10,7 +10,13 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import av
-from vsaiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder, MediaRelay
+
+from vsaiortc.contrib.media import (
+    MediaBlackhole,
+    MediaPlayer,
+    MediaRecorder,
+    MediaRelay,
+)
 from vsaiortc.mediastreams import AudioStreamTrack, MediaStreamError, VideoStreamTrack
 
 from .codecs import CodecTestCase

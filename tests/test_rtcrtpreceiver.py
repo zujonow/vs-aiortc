@@ -6,6 +6,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 import av
+
 from vsaiortc.codecs import PCMU_CODEC, get_encoder
 from vsaiortc.exceptions import InvalidStateError
 from vsaiortc.mediastreams import MediaStreamError

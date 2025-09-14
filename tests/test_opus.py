@@ -1,5 +1,3 @@
-import fractions
-
 from vsaiortc.codecs import get_decoder, get_encoder
 from vsaiortc.codecs.opus import OpusDecoder, OpusEncoder
 from vsaiortc.jitterbuffer import JitterFrame

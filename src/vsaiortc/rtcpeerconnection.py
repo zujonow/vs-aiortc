@@ -237,8 +237,7 @@ def create_media_description_for_transceiver(
     media.rtcp_host = DISCARD_HOST
     media.rtcp_port = DISCARD_PORT
     media.rtcp_mux = True
-    media.ssrc = [sdp.SsrcDescription(
-        ssrc=transceiver.sender._ssrc, cname=cname)]
+    media.ssrc = [sdp.SsrcDescription(ssrc=transceiver.sender._ssrc, cname=cname)]
 
     # if RTX is enabled, add corresponding SSRC
     if next(filter(is_rtx, media.rtp.codecs), None):
@@ -609,8 +608,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
         :rtype: :class:`RTCDataChannel`
         """
         if maxPacketLifeTime is not None and maxRetransmits is not None:
-            raise ValueError(
-                "Cannot specify both maxPacketLifeTime and maxRetransmits")
+            raise ValueError("Cannot specify both maxPacketLifeTime and maxRetransmits")
 
         if not self.__sctp:
             self.__createSctpTransport()
@@ -711,8 +709,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
             self.__sctp_mline_index = next_mline_index()
             description.media.append(
                 create_media_description_for_sctp(
-                    self.__sctp, legacy=self._sctpLegacySdp, mid=allocate_mid(
-                        mids)
+                    self.__sctp, legacy=self._sctpLegacySdp, mid=allocate_mid(mids)
                 )
             )
 
@@ -832,8 +829,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
         # configure direction
         for t in self.__transceivers:
             if description.type in ["answer", "pranswer"]:
-                t._setCurrentDirection(and_direction(
-                    t.direction, t._offerDirection))
+                t._setCurrentDirection(and_direction(t.direction, t._offerDirection))
 
         # gather candidates
         await self.__gather()
@@ -855,10 +851,11 @@ class RTCPeerConnection(AsyncIOEventEmitter):
             self.__pendingLocalDescription = description
 
     async def setRemoteDescription(
-        self, sessionDescription: RTCSessionDescription,
+        self,
+        sessionDescription: RTCSessionDescription,
         custom_codecs: Optional[list[RTCRtpCodecParameters]] = [],
         kind: Optional[str] = None,
-        track_buffer_size: Optional[int] = None
+        track_buffer_size: Optional[int] = None,
     ) -> None:
         """
         Changes the remote description associated with the connection.
@@ -935,7 +932,9 @@ class RTCPeerConnection(AsyncIOEventEmitter):
                     and not transceiver.receiver.track
                 ):
                     transceiver.receiver._track = RemoteStreamTrack(
-                        kind=media.kind, id=description.webrtc_track_id(media), track_buffer_size=track_buffer_size
+                        kind=media.kind,
+                        id=description.webrtc_track_id(media),
+                        track_buffer_size=track_buffer_size,
                     )
                     trackEvents.append(
                         RTCTrackEvent(
@@ -990,8 +989,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
                     )
 
         # remove bundled transports
-        bundle = next(
-            (x for x in description.group if x.semantic == "BUNDLE"), None)
+        bundle = next((x for x in description.group if x.semantic == "BUNDLE"), None)
         if bundle and bundle.items:
             # find main media stream
             primaryMid = bundle.items[0]
@@ -1107,8 +1105,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
 
     def __createDtlsTransport(self) -> RTCDtlsTransport:
         # create ICE transport
-        iceGatherer = RTCIceGatherer(
-            iceServers=self.__configuration.iceServers)
+        iceGatherer = RTCIceGatherer(iceServers=self.__configuration.iceServers)
         iceGatherer.on("statechange", self.__updateIceGatheringState)
         iceTransport = RTCIceTransport(iceGatherer)
         iceTransport.on("statechange", self.__updateIceConnectionState)
@@ -1185,8 +1182,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
 
     def __getTransceiverByMLineIndex(self, index: int) -> Optional[RTCRtpTransceiver]:
         return next(
-            filter(lambda x: x._get_mline_index() ==
-                   index, self.__transceivers), None
+            filter(lambda x: x._get_mline_index() == index, self.__transceivers), None
         )
 
     def __localDescription(self) -> Optional[sdp.SessionDescription]:
@@ -1210,8 +1206,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
         return self.__pendingRemoteDescription or self.__currentRemoteDescription
 
     def __remoteRtp(self, transceiver: RTCRtpTransceiver) -> RTCRtpReceiveParameters:
-        media = self.__remoteDescription(
-        ).media[transceiver._get_mline_index()]
+        media = self.__remoteDescription().media[transceiver._get_mline_index()]
 
         receiveParameters = RTCRtpReceiveParameters(
             codecs=transceiver._codecs,
@@ -1268,8 +1263,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
 
         # update state
         if state != self.__connectionState:
-            self.__log_debug("connectionState %s -> %s",
-                             self.__connectionState, state)
+            self.__log_debug("connectionState %s -> %s", self.__connectionState, state)
             self.__connectionState = state
             self.emit("connectionstatechange")
 
@@ -1362,8 +1356,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
         for media in description.media:
             # check ICE credentials were provided
             if not media.ice.usernameFragment or not media.ice.password:
-                raise ValueError(
-                    "ICE username fragment or password is missing")
+                raise ValueError("ICE username fragment or password is missing")
 
             # check DTLS role is allowed
             if description.type in ["answer", "pranswer"] and media.dtls.role not in [
@@ -1383,8 +1376,7 @@ class RTCPeerConnection(AsyncIOEventEmitter):
             offer = (
                 self.__remoteDescription() if is_local else self.__localDescription()
             )
-            offer_media = [(media.kind, media.rtp.muxId)
-                           for media in offer.media]
+            offer_media = [(media.kind, media.rtp.muxId) for media in offer.media]
             answer_media = [
                 (media.kind, media.rtp.muxId) for media in description.media
             ]

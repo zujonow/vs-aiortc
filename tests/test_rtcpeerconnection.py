@@ -5,6 +5,7 @@ from typing import Optional, Union
 from unittest import TestCase
 
 import aioice.stun
+
 from vsaiortc import (
     RTCBundlePolicy,
     RTCConfiguration,

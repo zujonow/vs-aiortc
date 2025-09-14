@@ -3,6 +3,8 @@ import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+from OpenSSL import SSL
+
 from vsaiortc.rtcdtlstransport import (
     SRTP_AEAD_AES_256_GCM,
     SRTP_AES128_CM_SHA1_80,
@@ -32,7 +34,6 @@ from vsaiortc.rtp import (
     RtpPacket,
     pack_remb_fci,
 )
-from OpenSSL import SSL
 
 from .utils import asynctest, dummy_ice_transport_pair, load, set_loss_pattern
 

@@ -8,8 +8,10 @@ import ssl
 from typing import Optional
 
 from aiohttp import web
+
 from vsaiortc import RTCPeerConnection, RTCSessionDescription
 from vsaiortc.contrib.media import MediaPlayer, MediaRelay
+from vsaiortc.mediastreams import MediaStreamTrack
 from vsaiortc.rtcrtpsender import RTCRtpSender
 
 ROOT = os.path.dirname(__file__)

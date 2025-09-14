@@ -15,9 +15,13 @@ TIME_BASE = fractions.Fraction(1, SAMPLE_RATE)
 
 
 class OpusDecoder(Decoder):
-    def __init__(self, audio_ptime: Optional[float] = None, sample_rate: Optional[int] = None) -> None:
+    def __init__(
+        self, audio_ptime: Optional[float] = None, sample_rate: Optional[int] = None
+    ) -> None:
         # keep old constructor logic
-        self.audio_ptime = self._build_ptime(audio_ptime * 1000) / 1000 if audio_ptime else 0.020
+        self.audio_ptime = (
+            self._build_ptime(audio_ptime * 1000) / 1000 if audio_ptime else 0.020
+        )
         self.sample_rate = sample_rate if sample_rate else SAMPLE_RATE
         self.samples_per_frame = int(self.audio_ptime * self.sample_rate)
         self.time_base = fractions.Fraction(1, self.sample_rate)
@@ -28,7 +32,7 @@ class OpusDecoder(Decoder):
         self.codec.layout = "stereo"
         self.codec.sample_rate = self.sample_rate
 
-    def _build_ptime(self, audio_ptime: int) -> int:
+    def _build_ptime(self, audio_ptime: float) -> float:
         # round ptime to multiple of 20ms (old logic preserved)
         if (audio_ptime / 10) % 2 == 0:
             return audio_ptime
@@ -62,7 +66,9 @@ class OpusEncoder(Encoder):
 
         self.first_packet_pts: Optional[int] = None
 
-    def encode(self, frame: Frame, force_keyframe: bool = False) -> tuple[list[bytes], int]:
+    def encode(
+        self, frame: Frame, force_keyframe: bool = False
+    ) -> tuple[list[bytes], int]:
         assert isinstance(frame, AudioFrame)
         assert frame.format.name == "s16"
         assert frame.layout.name in ["mono", "stereo"]
