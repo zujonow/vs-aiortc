@@ -23,13 +23,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.9
-      # - name: Run linters
-      #   run: |
-      #     pip install . -r requirements/lint.txt
-      #     ruff check .
-      #     ruff format --check --diff .
-      #     check-manifest
-      #     mypy src tests
+      - name: Run linters
+        run: |
+          pip install . -r requirements/lint.txt
+          ruff check .
+          ruff format --check --diff .
+          check-manifest
+          mypy src tests
 
   test:
     runs-on: ${{ matrix.os }}
