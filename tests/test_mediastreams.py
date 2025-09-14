@@ -1,8 +1,9 @@
 import asyncio
 import fractions
 import time
-from typing import Tuple
 from unittest import TestCase
+
+from av.packet import Packet
 
 from vsaiortc.mediastreams import (
     VIDEO_CLOCK_RATE,
@@ -12,7 +13,6 @@ from vsaiortc.mediastreams import (
     MediaStreamTrack,
     VideoStreamTrack,
 )
-from av.packet import Packet
 
 
 class VideoPacketStreamTrack(MediaStreamTrack):
@@ -25,7 +25,7 @@ class VideoPacketStreamTrack(MediaStreamTrack):
     _start: float
     _timestamp: int
 
-    async def next_timestamp(self) -> Tuple[int, fractions.Fraction]:
+    async def next_timestamp(self) -> tuple[int, fractions.Fraction]:
         if hasattr(self, "_timestamp"):
             self._timestamp += int(VIDEO_PTIME * VIDEO_CLOCK_RATE)
             wait = self._start + (self._timestamp / VIDEO_CLOCK_RATE) - time.time()
@@ -52,17 +52,17 @@ class VideoPacketStreamTrack(MediaStreamTrack):
 
 
 class MediaStreamTrackTest(TestCase):
-    def test_audio(self):
+    def test_audio(self) -> None:
         track = AudioStreamTrack()
         self.assertEqual(track.kind, "audio")
         self.assertEqual(len(track.id), 36)
 
-    def test_video(self):
+    def test_video(self) -> None:
         track = VideoStreamTrack()
         self.assertEqual(track.kind, "video")
         self.assertEqual(len(track.id), 36)
 
-    def test_native_video(self):
+    def test_native_video(self) -> None:
         track = VideoPacketStreamTrack()
         self.assertEqual(track.kind, "video")
         self.assertEqual(len(track.id), 36)

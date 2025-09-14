@@ -1,15 +1,44 @@
 import fractions
-from unittest import TestCase
+from typing import Optional
+
+from av import AudioFrame, VideoFrame
+from av.frame import Frame
+from av.packet import Packet
 
 from vsaiortc.codecs import depayload, get_decoder, get_encoder
 from vsaiortc.jitterbuffer import JitterFrame
 from vsaiortc.mediastreams import AUDIO_PTIME, VIDEO_TIME_BASE
-from av import AudioFrame, VideoFrame
-from av.packet import Packet
+from vsaiortc.rtcrtpparameters import RTCRtpCodecParameters
+
+from .utils import TestCase
 
 
 class CodecTestCase(TestCase):
-    def create_audio_frame(self, samples, pts, layout="mono", sample_rate=48000):
+    def assertAudioFrame(
+        self,
+        frame: Frame,
+        *,
+        layout: str,
+        pts: int,
+        samples: int,
+        sample_rate: int,
+        data: Optional[bytes],
+    ) -> None:
+        assert isinstance(frame, AudioFrame)
+        self.assertEqual(frame.format.name, "s16")
+        self.assertEqual(frame.layout.name, layout)
+        self.assertEqual(frame.pts, pts)
+        self.assertEqual(frame.samples, samples)
+        self.assertEqual(frame.sample_rate, sample_rate)
+        self.assertEqual(frame.time_base, fractions.Fraction(1, sample_rate))
+
+        if data is not None:
+            plane_data = bytes(frame.planes[0])
+            self.assertEqual(plane_data[: len(data)], data)
+
+    def create_audio_frame(
+        self, samples: int, pts: int, layout: str = "mono", sample_rate: int = 48000
+    ) -> AudioFrame:
         frame = AudioFrame(format="s16", layout=layout, samples=samples)
         for p in frame.planes:
             p.update(bytes(p.buffer_size))
@@ -18,7 +47,9 @@ class CodecTestCase(TestCase):
         frame.time_base = fractions.Fraction(1, sample_rate)
         return frame
 
-    def create_audio_frames(self, layout, sample_rate, count):
+    def create_audio_frames(
+        self, layout: str, sample_rate: int, count: int
+    ) -> list[AudioFrame]:
         frames = []
         timestamp = 0
         samples_per_frame = int(AUDIO_PTIME * sample_rate)
@@ -45,8 +76,13 @@ class CodecTestCase(TestCase):
         return packet
 
     def create_video_frame(
-        self, width, height, pts, format="yuv420p", time_base=VIDEO_TIME_BASE
-    ):
+        self,
+        width: int,
+        height: int,
+        pts: int,
+        format: str = "yuv420p",
+        time_base: fractions.Fraction = VIDEO_TIME_BASE,
+    ) -> VideoFrame:
         """
         Create a single blank video frame.
         """
@@ -57,7 +93,13 @@ class CodecTestCase(TestCase):
         frame.time_base = time_base
         return frame
 
-    def create_video_frames(self, width, height, count, time_base=VIDEO_TIME_BASE):
+    def create_video_frames(
+        self,
+        width: int,
+        height: int,
+        count: int,
+        time_base: fractions.Fraction = VIDEO_TIME_BASE,
+    ) -> list[VideoFrame]:
         """
         Create consecutive blank video frames.
         """
@@ -75,28 +117,27 @@ class CodecTestCase(TestCase):
 
     def roundtrip_audio(
         self,
-        codec,
-        output_layout,
-        output_sample_rate,
-        input_layout="mono",
-        input_sample_rate=8000,
-        drop=[],
-    ):
+        codec: RTCRtpCodecParameters,
+        layout: str,
+        sample_rate: int,
+        drop: list[int] = [],
+    ) -> None:
         """
         Round-trip an AudioFrame through encoder then decoder.
         """
         encoder = get_encoder(codec)
         decoder = get_decoder(codec)
 
+        samples = int(sample_rate * AUDIO_PTIME)
+        time_base = fractions.Fraction(1, sample_rate)
+
         input_frames = self.create_audio_frames(
-            layout=input_layout, sample_rate=input_sample_rate, count=10
+            layout=layout, sample_rate=sample_rate, count=10
         )
-
-        output_sample_count = int(output_sample_rate * AUDIO_PTIME)
-
         for i, frame in enumerate(input_frames):
             # encode
             packages, timestamp = encoder.encode(frame)
+            self.assertEqual(timestamp, i * codec.clockRate * AUDIO_PTIME)
 
             if i not in drop:
                 # depacketize
@@ -107,16 +148,21 @@ class CodecTestCase(TestCase):
                 # decode
                 frames = decoder.decode(JitterFrame(data=data, timestamp=timestamp))
                 self.assertEqual(len(frames), 1)
+                assert isinstance(frames[0], AudioFrame)
                 self.assertEqual(frames[0].format.name, "s16")
-                self.assertEqual(frames[0].layout.name, output_layout)
-                self.assertEqual(frames[0].samples, output_sample_rate * AUDIO_PTIME)
-                self.assertEqual(frames[0].sample_rate, output_sample_rate)
-                self.assertEqual(frames[0].pts, i * output_sample_count)
-                self.assertEqual(
-                    frames[0].time_base, fractions.Fraction(1, output_sample_rate)
-                )
+                self.assertEqual(frames[0].layout.name, layout)
+                self.assertEqual(frames[0].samples, samples)
+                self.assertEqual(frames[0].sample_rate, sample_rate)
+                self.assertEqual(frames[0].pts, i * samples)
+                self.assertEqual(frames[0].time_base, time_base)
 
-    def roundtrip_video(self, codec, width, height, time_base=VIDEO_TIME_BASE):
+    def roundtrip_video(
+        self,
+        codec: RTCRtpCodecParameters,
+        width: int,
+        height: int,
+        time_base: fractions.Fraction = VIDEO_TIME_BASE,
+    ) -> None:
         """
         Round-trip a VideoFrame through encoder then decoder.
         """
@@ -138,7 +184,8 @@ class CodecTestCase(TestCase):
             # decode
             frames = decoder.decode(JitterFrame(data=data, timestamp=timestamp))
             self.assertEqual(len(frames), 1)
+            assert isinstance(frames[0], VideoFrame)
             self.assertEqual(frames[0].width, frame.width)
             self.assertEqual(frames[0].height, frame.height)
-            self.assertEqual(frames[0].pts, i * 3000)
+            self.assertAlmostEqual(frames[0].pts, i * 3000, delta=1)
             self.assertEqual(frames[0].time_base, VIDEO_TIME_BASE)

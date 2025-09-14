@@ -3,15 +3,14 @@ import fractions
 import time
 import uuid
 from abc import ABCMeta, abstractmethod
-from typing import Tuple, Union
+from typing import Union
 
 from av import AudioFrame, VideoFrame
 from av.frame import Frame
 from av.packet import Packet
 from pyee.asyncio import AsyncIOEventEmitter
 
-
-AUDIO_PTIME = 0.020  # default 20ms audio packetization 
+AUDIO_PTIME = 0.020  # default 20ms audio packetization
 VIDEO_CLOCK_RATE = 90000
 VIDEO_PTIME = 1 / 30  # 30fps
 VIDEO_TIME_BASE = fractions.Fraction(1, VIDEO_CLOCK_RATE)
@@ -119,7 +118,7 @@ class VideoStreamTrack(MediaStreamTrack):
     _start: float
     _timestamp: int
 
-    async def next_timestamp(self) -> Tuple[int, fractions.Fraction]:
+    async def next_timestamp(self) -> tuple[int, fractions.Fraction]:
         if self.readyState != "live":
             raise MediaStreamError
 

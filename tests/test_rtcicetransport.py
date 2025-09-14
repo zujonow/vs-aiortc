@@ -1,8 +1,10 @@
 import asyncio
-from unittest import TestCase
+from typing import Optional
 
+import aioice.ice
 import aioice.stun
 from aioice import ConnectionClosed
+
 from vsaiortc.exceptions import InvalidStateError
 from vsaiortc.rtcconfiguration import RTCIceServer
 from vsaiortc.rtcicetransport import (
@@ -14,37 +16,36 @@ from vsaiortc.rtcicetransport import (
     parse_stun_turn_uri,
 )
 
-from .utils import asynctest
+from .utils import TestCase, asynctest
 
 
-async def mock_connect():
+async def mock_connect() -> None:
     pass
 
 
-async def mock_get_event():
+async def mock_get_event() -> Optional[aioice.ice.ConnectionEvent]:
     await asyncio.sleep(0.5)
     return ConnectionClosed()
 
 
 class ConnectionKwargsTest(TestCase):
-    def test_empty(self):
+    def test_empty(self) -> None:
         self.assertEqual(connection_kwargs([]), {})
 
-    def test_stun(self):
+    def test_stun(self) -> None:
         self.assertEqual(
             connection_kwargs([RTCIceServer("stun:stun.l.google.com:19302")]),
             {"stun_server": ("stun.l.google.com", 19302)},
         )
 
-    def test_stun_with_suffix(self):
+    def test_stun_with_transport(self) -> None:
+        with self.assertRaises(ValueError) as cm:
+            parse_stun_turn_uri("stun:global.stun.twilio.com:3478?transport=udp")
         self.assertEqual(
-            connection_kwargs(
-                [RTCIceServer("stun:global.stun.twilio.com:3478?transport=udp")]
-            ),
-            {"stun_server": ("global.stun.twilio.com", 3478)},
+            str(cm.exception), "malformed uri: stun must not contain transport"
         )
 
-    def test_stun_multiple_servers(self):
+    def test_stun_multiple_servers(self) -> None:
         self.assertEqual(
             connection_kwargs(
                 [
@@ -55,7 +56,7 @@ class ConnectionKwargsTest(TestCase):
             {"stun_server": ("stun.l.google.com", 19302)},
         )
 
-    def test_stun_multiple_urls(self):
+    def test_stun_multiple_urls(self) -> None:
         self.assertEqual(
             connection_kwargs(
                 [
@@ -70,7 +71,7 @@ class ConnectionKwargsTest(TestCase):
             {"stun_server": ("stun1.l.google.com", 19302)},
         )
 
-    def test_turn(self):
+    def test_turn(self) -> None:
         self.assertEqual(
             connection_kwargs([RTCIceServer("turn:turn.example.com")]),
             {
@@ -82,7 +83,7 @@ class ConnectionKwargsTest(TestCase):
             },
         )
 
-    def test_turn_multiple_servers(self):
+    def test_turn_multiple_servers(self) -> None:
         self.assertEqual(
             connection_kwargs(
                 [
@@ -99,7 +100,7 @@ class ConnectionKwargsTest(TestCase):
             },
         )
 
-    def test_turn_multiple_urls(self):
+    def test_turn_multiple_urls(self) -> None:
         self.assertEqual(
             connection_kwargs(
                 [RTCIceServer(["turn:turn1.example.com", "turn:turn2.example.com"])]
@@ -113,13 +114,13 @@ class ConnectionKwargsTest(TestCase):
             },
         )
 
-    def test_turn_over_bogus(self):
+    def test_turn_over_bogus(self) -> None:
         self.assertEqual(
             connection_kwargs([RTCIceServer("turn:turn.example.com?transport=bogus")]),
             {},
         )
 
-    def test_turn_over_tcp(self):
+    def test_turn_over_tcp(self) -> None:
         self.assertEqual(
             connection_kwargs([RTCIceServer("turn:turn.example.com?transport=tcp")]),
             {
@@ -131,7 +132,7 @@ class ConnectionKwargsTest(TestCase):
             },
         )
 
-    def test_turn_with_password(self):
+    def test_turn_with_password(self) -> None:
         self.assertEqual(
             connection_kwargs(
                 [
@@ -149,7 +150,7 @@ class ConnectionKwargsTest(TestCase):
             },
         )
 
-    def test_turn_with_token(self):
+    def test_turn_with_token(self) -> None:
         self.assertEqual(
             connection_kwargs(
                 [
@@ -164,7 +165,7 @@ class ConnectionKwargsTest(TestCase):
             {},
         )
 
-    def test_turns(self):
+    def test_turns(self) -> None:
         self.assertEqual(
             connection_kwargs([RTCIceServer("turns:turn.example.com")]),
             {
@@ -176,7 +177,7 @@ class ConnectionKwargsTest(TestCase):
             },
         )
 
-    def test_turns_over_udp(self):
+    def test_turns_over_udp(self) -> None:
         self.assertEqual(
             connection_kwargs([RTCIceServer("turns:turn.example.com?transport=udp")]),
             {},
@@ -184,54 +185,54 @@ class ConnectionKwargsTest(TestCase):
 
 
 class ParseStunTurnUriTest(TestCase):
-    def test_invalid_scheme(self):
+    def test_invalid_scheme(self) -> None:
         with self.assertRaises(ValueError) as cm:
             parse_stun_turn_uri("foo")
         self.assertEqual(str(cm.exception), "malformed uri: invalid scheme")
 
-    def test_invalid_uri(self):
+    def test_invalid_uri(self) -> None:
         with self.assertRaises(ValueError) as cm:
             parse_stun_turn_uri("stun")
         self.assertEqual(str(cm.exception), "malformed uri")
 
-    def test_stun(self):
+    def test_stun(self) -> None:
         uri = parse_stun_turn_uri("stun:stun.services.mozilla.com")
         self.assertEqual(
             uri, {"host": "stun.services.mozilla.com", "port": 3478, "scheme": "stun"}
         )
 
-    def test_stuns(self):
+    def test_stuns(self) -> None:
         uri = parse_stun_turn_uri("stuns:stun.services.mozilla.com")
         self.assertEqual(
             uri, {"host": "stun.services.mozilla.com", "port": 5349, "scheme": "stuns"}
         )
 
-    def test_stun_with_port(self):
+    def test_stun_with_port(self) -> None:
         uri = parse_stun_turn_uri("stun:stun.l.google.com:19302")
         self.assertEqual(
             uri, {"host": "stun.l.google.com", "port": 19302, "scheme": "stun"}
         )
 
-    def test_turn(self):
+    def test_turn(self) -> None:
         uri = parse_stun_turn_uri("turn:1.2.3.4")
         self.assertEqual(
             uri, {"host": "1.2.3.4", "port": 3478, "scheme": "turn", "transport": "udp"}
         )
 
-    def test_turn_with_port_and_transport(self):
+    def test_turn_with_port_and_transport(self) -> None:
         uri = parse_stun_turn_uri("turn:1.2.3.4:3478?transport=tcp")
         self.assertEqual(
             uri, {"host": "1.2.3.4", "port": 3478, "scheme": "turn", "transport": "tcp"}
         )
 
-    def test_turns(self):
+    def test_turns(self) -> None:
         uri = parse_stun_turn_uri("turns:1.2.3.4")
         self.assertEqual(
             uri,
             {"host": "1.2.3.4", "port": 5349, "scheme": "turns", "transport": "tcp"},
         )
 
-    def test_turns_with_port_and_transport(self):
+    def test_turns_with_port_and_transport(self) -> None:
         uri = parse_stun_turn_uri("turns:1.2.3.4:1234?transport=tcp")
         self.assertEqual(
             uri,
@@ -241,7 +242,7 @@ class ParseStunTurnUriTest(TestCase):
 
 class RTCIceGathererTest(TestCase):
     @asynctest
-    async def test_gather(self):
+    async def test_gather(self) -> None:
         gatherer = RTCIceGatherer()
         self.assertEqual(gatherer.state, "new")
         self.assertEqual(gatherer.getLocalCandidates(), [])
@@ -252,7 +253,7 @@ class RTCIceGathererTest(TestCase):
         # close
         await gatherer._connection.close()
 
-    def test_default_ice_servers(self):
+    def test_default_ice_servers(self) -> None:
         self.assertEqual(
             RTCIceGatherer.getDefaultIceServers(),
             [RTCIceServer(urls="stun:stun.l.google.com:19302")],
@@ -260,7 +261,7 @@ class RTCIceGathererTest(TestCase):
 
 
 class RTCIceTransportTest(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # save timers
         self.consent_failures = aioice.ice.CONSENT_FAILURES
         self.consent_interval = aioice.ice.CONSENT_INTERVAL
@@ -273,7 +274,7 @@ class RTCIceTransportTest(TestCase):
         aioice.stun.RETRY_MAX = 1
         aioice.stun.RETRY_RTO = 0.1
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         # restore timers
         aioice.ice.CONSENT_FAILURES = self.consent_failures
         aioice.ice.CONSENT_INTERVAL = self.consent_interval
@@ -281,7 +282,7 @@ class RTCIceTransportTest(TestCase):
         aioice.stun.RETRY_RTO = self.retry_rto
 
     @asynctest
-    async def test_construct(self):
+    async def test_construct(self) -> None:
         gatherer = RTCIceGatherer()
         connection = RTCIceTransport(gatherer)
         self.assertEqual(connection.state, "new")
@@ -306,7 +307,7 @@ class RTCIceTransportTest(TestCase):
         self.assertEqual(connection.getRemoteCandidates(), [candidate])
 
     @asynctest
-    async def test_connect(self):
+    async def test_connect(self) -> None:
         gatherer_1 = RTCIceGatherer()
         transport_1 = RTCIceTransport(gatherer_1)
 
@@ -336,7 +337,7 @@ class RTCIceTransportTest(TestCase):
         self.assertEqual(transport_2.state, "closed")
 
     @asynctest
-    async def test_connect_fail(self):
+    async def test_connect_fail(self) -> None:
         gatherer_1 = RTCIceGatherer()
         transport_1 = RTCIceTransport(gatherer_1)
 
@@ -364,7 +365,7 @@ class RTCIceTransportTest(TestCase):
         self.assertEqual(transport_2.state, "closed")
 
     @asynctest
-    async def test_connect_then_consent_expires(self):
+    async def test_connect_then_consent_expires(self) -> None:
         gatherer_1 = RTCIceGatherer()
         transport_1 = RTCIceTransport(gatherer_1)
 
@@ -400,7 +401,7 @@ class RTCIceTransportTest(TestCase):
         self.assertEqual(transport_2.state, "closed")
 
     @asynctest
-    async def test_connect_when_closed(self):
+    async def test_connect_when_closed(self) -> None:
         gatherer = RTCIceGatherer()
         transport = RTCIceTransport(gatherer)
 
@@ -416,12 +417,12 @@ class RTCIceTransportTest(TestCase):
         self.assertEqual(str(cm.exception), "RTCIceTransport is closed")
 
     @asynctest
-    async def test_connection_closed(self):
+    async def test_connection_closed(self) -> None:
         gatherer = RTCIceGatherer()
 
         # mock out methods
-        gatherer._connection.connect = mock_connect
-        gatherer._connection.get_event = mock_get_event
+        gatherer._connection.connect = mock_connect  # type: ignore
+        gatherer._connection.get_event = mock_get_event  # type: ignore
 
         transport = RTCIceTransport(gatherer)
         self.assertEqual(transport.state, "new")

@@ -8,9 +8,15 @@ import uuid
 
 import cv2
 from aiohttp import web
-from vsaiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription
-from vsaiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder, MediaRelay
 from av import VideoFrame
+
+from vsaiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription
+from vsaiortc.contrib.media import (
+    MediaBlackhole,
+    MediaPlayer,
+    MediaRecorder,
+    MediaRelay,
+)
 
 ROOT = os.path.dirname(__file__)
 

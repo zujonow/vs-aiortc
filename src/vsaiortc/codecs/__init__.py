@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 from ..rtcrtpparameters import (
     ParametersDict,
@@ -11,10 +11,17 @@ from ..rtcrtpparameters import (
 )
 from .base import Decoder, Encoder
 from .g711 import PcmaDecoder, PcmaEncoder, PcmuDecoder, PcmuEncoder
+from .g722 import G722Decoder as G722Decoder
+from .g722 import G722Encoder
 from .h264 import H264Decoder, H264Encoder, h264_depayload
 from .opus import OpusDecoder, OpusEncoder
 from .vpx import Vp8Decoder, Vp8Encoder, vp8_depayload
 
+# The clockrate for G.722 is 8kHz even though the sampling rate is 16kHz.
+# See https://datatracker.ietf.org/doc/html/rfc3551
+G722_CODEC = RTCRtpCodecParameters(
+    mimeType="audio/G722", clockRate=8000, channels=1, payloadType=9
+)
 PCMU_CODEC = RTCRtpCodecParameters(
     mimeType="audio/PCMU", clockRate=8000, channels=1, payloadType=0
 )
@@ -22,11 +29,12 @@ PCMA_CODEC = RTCRtpCodecParameters(
     mimeType="audio/PCMA", clockRate=8000, channels=1, payloadType=8
 )
 
-CODECS: Dict[str, List[RTCRtpCodecParameters]] = {
+CODECS: dict[str, list[RTCRtpCodecParameters]] = {
     "audio": [
         RTCRtpCodecParameters(
             mimeType="audio/opus", clockRate=48000, channels=2, payloadType=96
         ),
+        G722_CODEC,
         PCMU_CODEC,
         PCMA_CODEC,
     ],
@@ -35,7 +43,7 @@ CODECS: Dict[str, List[RTCRtpCodecParameters]] = {
 # Note, the id space for these extensions is shared across media types when BUNDLE
 # is negotiated. If you add a audio- or video-specific extension, make sure it has
 # a unique id.
-HEADER_EXTENSIONS: Dict[str, List[RTCRtpHeaderExtensionParameters]] = {
+HEADER_EXTENSIONS: dict[str, list[RTCRtpHeaderExtensionParameters]] = {
     "audio": [
         RTCRtpHeaderExtensionParameters(
             id=1, uri="urn:ietf:params:rtp-hdrext:sdes:mid"
@@ -134,8 +142,7 @@ def get_capabilities(kind: str) -> RTCRtpCapabilities:
 
     headerExtensions = []
     for extension in HEADER_EXTENSIONS[kind]:
-        headerExtensions.append(
-            RTCRtpHeaderExtensionCapability(uri=extension.uri))
+        headerExtensions.append(RTCRtpHeaderExtensionCapability(uri=extension.uri))
     return RTCRtpCapabilities(codecs=codecs, headerExtensions=headerExtensions)
 
 
@@ -145,7 +152,7 @@ def get_decoder(codec: RTCRtpCodecParameters) -> Decoder:
     if mimeType == "audio/opus":
         if "ptime" not in codec.parameters:
             codec.parameters["ptime"] = 20
-        return OpusDecoder(codec.parameters["ptime"]/1000, codec.clockRate)
+        return OpusDecoder(int(codec.parameters["ptime"]) / 1000, codec.clockRate)
     elif mimeType == "audio/pcma":
         return PcmaDecoder()
     elif mimeType == "audio/pcmu":
@@ -161,7 +168,9 @@ def get_decoder(codec: RTCRtpCodecParameters) -> Decoder:
 def get_encoder(codec: RTCRtpCodecParameters) -> Encoder:
     mimeType = codec.mimeType.lower()
 
-    if mimeType == "audio/opus":
+    if mimeType == "audio/g722":
+        return G722Encoder()
+    elif mimeType == "audio/opus":
         return OpusEncoder()
     elif mimeType == "audio/pcma":
         return PcmaEncoder()
