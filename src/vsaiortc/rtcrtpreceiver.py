@@ -135,6 +135,7 @@ class StreamStatistics:
         self.max_seq: Optional[int] = None
         self.cycles = 0
         self.packets_received = 0
+        self.bytes_received = 0
 
         # jitter
         self._clockrate = clockrate
@@ -151,6 +152,7 @@ class StreamStatistics:
             packet.sequence_number, self.max_seq
         )
         self.packets_received += 1
+        self.bytes_received += len(packet.payload)
 
         if self.base_seq is None:
             self.base_seq = packet.sequence_number
@@ -285,6 +287,7 @@ class RTCRtpReceiver:
         self._enabled = True
         self.__active_ssrc: dict[int, datetime.datetime] = {}
         self.__codecs: dict[int, RTCRtpCodecParameters] = {}
+        self.__active_codec_by_ssrc: dict[int, RTCRtpCodecParameters] = {}
         self.__decoder_queue: queue.Queue = queue.Queue()
         self.__decoder_thread: Optional[threading.Thread] = None
         self.__kind = kind
@@ -365,7 +368,13 @@ class RTCRtpReceiver:
                     packetsReceived=stream.packets_received,
                     packetsLost=stream.packets_lost,
                     jitter=stream.jitter,
-                    # RTPInboundRtpStreamStats
+                    # RTCInboundRtpStreamStats
+                    bytesReceived=stream.bytes_received,
+                    mimeType=(
+                        self.__active_codec_by_ssrc[ssrc].mimeType
+                        if ssrc in self.__active_codec_by_ssrc
+                        else None
+                    ),
                 )
             )
         self.__stats.update(self.transport._get_stats())
@@ -509,6 +518,7 @@ class RTCRtpReceiver:
         if packet.ssrc not in self.__remote_streams:
             self.__remote_streams[packet.ssrc] = StreamStatistics(codec.clockRate)
         self.__remote_streams[packet.ssrc].add(packet)
+        self.__active_codec_by_ssrc[packet.ssrc] = codec
 
         # unwrap retransmission packet
         if is_rtx(codec):

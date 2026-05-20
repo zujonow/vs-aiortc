@@ -126,6 +126,7 @@ class RTCRtpSender:
         self.__octet_count = 0
         self.__packet_count = 0
         self.__rtt: Optional[float] = None
+        self.__active_codec: Optional[RTCRtpCodecParameters] = None
 
         # logging
         self.__log_debug: Callable[..., None] = lambda *args: None
@@ -184,6 +185,9 @@ class RTCRtpSender:
                 bytesSent=self.__octet_count,
                 # RTCOutboundRtpStreamStats
                 trackId=str(id(self.track)),
+                mimeType=(
+                    self.__active_codec.mimeType if self.__active_codec else None
+                ),
             )
         )
         self.__stats.update(self.transport._get_stats())
@@ -258,7 +262,7 @@ class RTCRtpSender:
                         type="remote-inbound-rtp",
                         id="remote-inbound-rtp_" + str(id(self)),
                         # RTCStreamStats
-                        ssrc=packet.ssrc,
+                        ssrc=self._ssrc,
                         kind=self.__kind,
                         transportId=self.transport._stats_id,
                         # RTCReceivedRtpStreamStats
@@ -351,6 +355,7 @@ class RTCRtpSender:
         self.__force_keyframe = True
 
     async def _run_rtp(self, codec: RTCRtpCodecParameters) -> None:
+        self.__active_codec = codec
         self.__log_debug("- RTP started")
         self.__rtp_started.set()
 

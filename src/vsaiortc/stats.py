@@ -44,7 +44,10 @@ class RTCInboundRtpStreamStats(RTCReceivedRtpStreamStats):
     metrics for the incoming RTP media stream.
     """
 
-    pass
+    bytesReceived: int = 0
+    "Total number of bytes received for this SSRC (RTP payload only)."
+    mimeType: Optional[str] = None
+    "Codec MIME type (e.g. 'audio/opus', 'video/VP8') if known."
 
 
 @dataclass
@@ -66,6 +69,8 @@ class RTCOutboundRtpStreamStats(RTCSentRtpStreamStats):
     """
 
     trackId: str
+    mimeType: Optional[str] = None
+    "Codec MIME type (e.g. 'audio/opus', 'video/VP8') if known."
 
 
 @dataclass
