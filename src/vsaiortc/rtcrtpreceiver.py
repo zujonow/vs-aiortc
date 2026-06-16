@@ -354,6 +354,19 @@ class RTCRtpReceiver:
         :rtype: :class:`RTCStatsReport`
         """
         for ssrc, stream in self.__remote_streams.items():
+            # Skip RTX (retransmission) streams. An RTX SSRC carries only
+            # retransmitted packets and shares this receiver's media kind
+            # ("video"), so without this guard it surfaces as a phantom
+            # second inbound-rtp entry (mimeType "video/rtx") alongside the
+            # real VP8/VP9/H264 stream and pollutes downstream stats.
+            codec = self.__active_codec_by_ssrc.get(ssrc)
+            if codec is not None and is_rtx(codec):
+                self.__log_debug(
+                    "x stats: ignoring RTX stream ssrc=%d mimeType=%s",
+                    ssrc,
+                    codec.mimeType,
+                )
+                continue
             self.__stats.add(
                 RTCInboundRtpStreamStats(
                     # RTCStats
