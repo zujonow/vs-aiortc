@@ -101,6 +101,10 @@ class RTCRtpSender:
         self._stream_id = str(uuid.uuid4())
         self._enabled = True
         self.__encoder: Optional[Encoder] = None
+        # Hard ceiling on outbound bitrate (bps). REMB can never push the
+        # encoder above this. None = unbounded (follow REMB). Set externally
+        # via the ``max_bitrate`` property.
+        self.__max_bitrate: Optional[int] = None
         self.__force_keyframe = False
         self.__loop = asyncio.get_event_loop()
         self.__mid: Optional[str] = None
@@ -134,6 +138,19 @@ class RTCRtpSender:
             self.__log_debug = lambda msg, *args: logger.debug(
                 f"RTCRtpSender(%s) {msg}", self.__kind, *args
             )
+
+    @property
+    def max_bitrate(self) -> Optional[int]:
+        """Hard ceiling on outbound bitrate in bps (None = follow REMB)."""
+        return self.__max_bitrate
+
+    @max_bitrate.setter
+    def max_bitrate(self, value: Optional[int]) -> None:
+        self.__max_bitrate = value
+        # Clamp the live encoder now; REMB may not fire again to trigger it.
+        enc = self.__encoder
+        if value is not None and enc is not None and hasattr(enc, "target_bitrate"):
+            enc.target_bitrate = min(enc.target_bitrate, value)
 
     @property
     def kind(self) -> str:
@@ -286,6 +303,8 @@ class RTCRtpSender:
                     self.__log_debug(
                         "- receiver estimated maximum bitrate %d bps", bitrate
                     )
+                    if self.max_bitrate is not None:
+                        bitrate = min(bitrate, self.max_bitrate)
                     if self.__encoder and hasattr(self.__encoder, "target_bitrate"):
                         self.__encoder.target_bitrate = bitrate
             except ValueError:
@@ -307,6 +326,11 @@ class RTCRtpSender:
 
         if self.__encoder is None:
             self.__encoder = get_encoder(codec)
+            # Apply the ceiling before any REMB arrives.
+            if self.max_bitrate is not None and hasattr(
+                self.__encoder, "target_bitrate"
+            ):
+                self.__encoder.target_bitrate = self.max_bitrate
 
         if isinstance(data, Frame):
             # Encode the frame.

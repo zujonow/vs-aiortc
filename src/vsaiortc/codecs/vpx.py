@@ -214,12 +214,18 @@ class Vp8Encoder(Encoder):
             self.codec.pix_fmt = "yuv420p"
             self.codec.gop_size = 3000  # kf_max_dist
             self.codec.qmin = 2  # rc_min_quantizer
-            self.codec.qmax = 56  # rc_max_quantizer
+            # VP8 max QP is 63; 56 capped compression and stopped the encoder
+            # hitting low bitrate targets. 63 lets it trade quality to honor
+            # the cap (needed for maxBitrate to actually work).
+            self.codec.qmax = 63  # rc_max_quantizer
             self.codec.options = {
                 # We want rc_buf_sz = 1000 and FFmpeg sets:
                 #   rc_buf_sz =  bufsize * 1000 / bit_rate
                 "bufsize": str(self.__target_bitrate),
-                "cpu-used": "-6",
+                # VP8 cpu-used range is 0..16; the old "-6" is invalid for VP8
+                # and made this libvpx build ignore the CBR cap (bitrate ran
+                # ~4x over target). 8 = fast realtime with working rate control.
+                "cpu-used": "8",
                 "deadline": "realtime",
                 "lag-in-frames": "0",
                 # Setting minrate = maxrate = bit_rate triggers CBR.
