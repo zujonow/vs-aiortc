@@ -212,6 +212,31 @@ class RTCDtlsTransportTest(TestCase):
         await session2.stop()
 
     @asynctest
+    async def test_wait_settled_on_stop_while_connecting(self) -> None:
+        transport1, transport2 = dummy_ice_transport_pair()
+
+        session1 = RTCDtlsTransport(transport1, [RTCCertificate.generateCertificate()])
+        session2 = RTCDtlsTransport(transport2, [RTCCertificate.generateCertificate()])
+
+        handshake = asyncio.ensure_future(
+            asyncio.gather(
+                session1.start(session2.getLocalParameters()),
+                session2.start(session1.getLocalParameters()),
+            )
+        )
+        await asyncio.sleep(0)
+        self.assertEqual(session1.state, "connecting")
+
+        waiter = asyncio.ensure_future(session1._wait_settled())
+        handshake.cancel()
+
+        # a transport torn down mid-handshake must not strand its waiters
+        await session1.stop()
+        await asyncio.wait_for(waiter, timeout=1)
+
+        await session2.stop()
+
+    @asynctest
     async def test_data_handler_error(self) -> None:
         transport1, transport2 = dummy_ice_transport_pair()
 

@@ -550,6 +550,10 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
         """
         Stop and close the DTLS transport.
         """
+        # a transport stopped mid-handshake never reaches a terminal state,
+        # so release waiters here rather than leave them pending forever
+        self._settled.set()
+
         if self._task is not None:
             self._task.cancel()
             self._task = None
