@@ -162,6 +162,56 @@ class RTCDtlsTransportTest(TestCase):
             await session1._send_data(b"foo")
 
     @asynctest
+    async def test_wait_settled(self) -> None:
+        transport1, transport2 = dummy_ice_transport_pair()
+
+        session1 = RTCDtlsTransport(transport1, [RTCCertificate.generateCertificate()])
+        session2 = RTCDtlsTransport(transport2, [RTCCertificate.generateCertificate()])
+
+        handshake = asyncio.gather(
+            session1.start(session2.getLocalParameters()),
+            session2.start(session1.getLocalParameters()),
+        )
+        await asyncio.sleep(0)
+        self.assertEqual(session1.state, "connecting")
+
+        waiter = asyncio.ensure_future(session1._wait_settled())
+        await asyncio.sleep(0)
+        self.assertFalse(waiter.done())
+
+        await handshake
+        await asyncio.wait_for(waiter, timeout=1)
+        self.assertEqual(session1.state, "connected")
+
+        await session1.stop()
+        await session2.stop()
+
+    @asynctest
+    async def test_wait_settled_on_failure(self) -> None:
+        transport1, transport2 = dummy_ice_transport_pair()
+
+        session1 = RTCDtlsTransport(transport1, [RTCCertificate.generateCertificate()])
+        session2 = RTCDtlsTransport(transport2, [RTCCertificate.generateCertificate()])
+
+        # mismatched fingerprint, so the handshake never completes
+        parameters = session2.getLocalParameters()
+        parameters.fingerprints[0].value = "00:" * 31 + "00"
+
+        handshake = asyncio.gather(
+            session1.start(parameters),
+            session2.start(session1.getLocalParameters()),
+        )
+        await asyncio.sleep(0)
+        waiter = asyncio.ensure_future(session1._wait_settled())
+
+        await handshake
+        await asyncio.wait_for(waiter, timeout=1)
+        self.assertEqual(session1.state, "failed")
+
+        await session1.stop()
+        await session2.stop()
+
+    @asynctest
     async def test_data_handler_error(self) -> None:
         transport1, transport2 = dummy_ice_transport_pair()
 

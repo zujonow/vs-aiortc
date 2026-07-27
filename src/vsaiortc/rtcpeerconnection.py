@@ -1068,6 +1068,8 @@ class RTCPeerConnection(AsyncIOEventEmitter):
                 await iceTransport.start(self.__remoteIce[transceiver])
                 if dtlsTransport.state == "new":
                     await dtlsTransport.start(self.__remoteDtls[transceiver])
+                elif dtlsTransport.state == "connecting":
+                    await dtlsTransport._wait_settled()
                 if dtlsTransport.state == "connected":
                     if transceiver.currentDirection in ["sendonly", "sendrecv"]:
                         await transceiver.sender.send(self.__localRtp(transceiver))
@@ -1085,6 +1087,8 @@ class RTCPeerConnection(AsyncIOEventEmitter):
                 await iceTransport.start(self.__remoteIce[self.__sctp])
                 if dtlsTransport.state == "new":
                     await dtlsTransport.start(self.__remoteDtls[self.__sctp])
+                elif dtlsTransport.state == "connecting":
+                    await dtlsTransport._wait_settled()
                 if dtlsTransport.state == "connected":
                     await self.__sctp.start(
                         self.__sctpRemoteCaps, self.__sctpRemotePort

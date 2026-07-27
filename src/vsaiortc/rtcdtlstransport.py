@@ -361,6 +361,7 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
         self._rtp_header_extensions_map = rtp.HeaderExtensionsMap()
         self._rtp_router = RtpRouter()
         self._state = State.NEW
+        self._settled = asyncio.Event()
         self._stats_id = "transport_" + str(id(self))
         self._task: Optional[asyncio.Future[None]] = None
         self._transport = transport
@@ -722,7 +723,19 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
         if state != self._state:
             self.__log_debug("- %s -> %s", self._state, state)
             self._state = state
+            if state != State.CONNECTING:
+                self._settled.set()
             self.emit("statechange")
+
+    async def _wait_settled(self) -> None:
+        """
+        Block until the handshake leaves the `connecting` state.
+
+        A transport shared via BUNDLE can be mid-handshake when a later
+        m-section is negotiated onto it; callers need to wait rather than
+        skip, otherwise the new receiver is never started.
+        """
+        await self._settled.wait()
 
     def _unregister_data_receiver(self, receiver: DataReceiver) -> None:
         if self._data_receiver == receiver:
