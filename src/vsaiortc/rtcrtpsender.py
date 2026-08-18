@@ -116,6 +116,7 @@ class RTCRtpSender:
         self.__rtx_sequence_number = random_sequence_number()
         self.__started = False
         self.__stats = RTCStatsReport()
+        self._timestamp_origin: Optional[int] = None
         self.__transport = transport
 
         # stats
@@ -361,6 +362,7 @@ class RTCRtpSender:
 
         sequence_number = random_sequence_number()
         timestamp_origin = random32()
+        self._timestamp_origin = timestamp_origin
         try:
             while True:
                 if not self.__track:
