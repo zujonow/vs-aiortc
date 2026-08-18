@@ -152,6 +152,40 @@ class RTCRtpSenderTest(TestCase):
             await local_transport.stop()
 
     @asynctest
+    async def test_timestamp_origin_is_exposed(self) -> None:
+        """
+        The RTP timestamp origin is random per RFC 3550, and a receiver's
+        TimestampMapper subtracts the first wire timestamp it sees -- the two
+        cancel, leaving one unknown constant between the receiver's frame
+        timestamps and the sender's capture clock.
+
+        Recovering that constant is what lets a receiver say when a frame was
+        captured, so the origin is published rather than kept as a local.
+        """
+        async with dummy_dtls_transport_pair() as (local_transport, _):
+            sender = RTCRtpSender(VideoStreamTrack(), local_transport)
+
+            # Absent, not undefined, before RTP starts.
+            self.assertIsNone(sender._timestamp_origin)
+
+            await sender.send(RTCRtpSendParameters(codecs=[VP8_CODEC]))
+            await asyncio.sleep(0.1)
+
+            self.assertIsNotNone(sender._timestamp_origin)
+            assert sender._timestamp_origin is not None
+            self.assertGreaterEqual(sender._timestamp_origin, 0)
+            self.assertLess(sender._timestamp_origin, 1 << 32)
+
+            # Stable for the life of the stream: it is the base every RTP
+            # timestamp is offset from, so a moving value would desynchronise
+            # every frame after it.
+            origin = sender._timestamp_origin
+            await asyncio.sleep(0.1)
+            self.assertEqual(sender._timestamp_origin, origin)
+
+            await sender.stop()
+
+    @asynctest
     async def test_handle_rtcp_nack(self) -> None:
         async with dummy_dtls_transport_pair() as (local_transport, _):
             sender = RTCRtpSender(VideoStreamTrack(), local_transport)
