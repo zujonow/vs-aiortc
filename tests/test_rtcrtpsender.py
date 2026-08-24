@@ -119,6 +119,9 @@ class RTCRtpSenderTest(TestCase):
                 RTCRtpHeaderExtensionCapability(
                     uri="http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time"
                 ),
+                RTCRtpHeaderExtensionCapability(
+                    uri="http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time"
+                ),
             ],
         )
 

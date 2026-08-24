@@ -49,6 +49,10 @@ from .utils import uint16_add, uint16_gt
 
 logger = logging.getLogger(__name__)
 
+#: Frames of capture-time history kept per receiver. At 30 fps this is ~2
+#: minutes, far longer than any consumer that is not already broken.
+_CAPTURE_CACHE = 4096
+
 
 def decoder_worker(
     loop: asyncio.AbstractEventLoop,
@@ -307,6 +311,14 @@ class RTCRtpReceiver:
         self.__started = False
         self.__stats = RTCStatsReport()
         self.__timestamp_mapper = TimestampMapper()
+        #: raw wire timestamp -> capture NTP, for packets seen but not yet
+        #: assembled into a frame.
+        self.__raw_capture: dict[int, int] = {}
+        #: frame.pts -> capture NTP. Keyed on the MAPPED timestamp, because
+        #: that is what a decoded frame carries -- see _handle_rtp_packet.
+        self.__capture_times: dict[int, int] = {}
+        self._abs_capture_packets = 0
+        self._rtp_packets = 0
         self.__transport = transport
 
         # RTCP
@@ -407,6 +419,18 @@ class RTCRtpReceiver:
                     RTCRtpSynchronizationSource(source=source, timestamp=timestamp)
                 )
         return sources
+
+    def capture_time_of(self, pts: int) -> Optional[int]:
+        """
+        The instant this frame was CAPTURED, as a 64-bit NTP timestamp, or
+        None if the sender did not advertise one.
+
+        `pts` is taken straight off a frame handed out by ``recv()``. The value
+        is the publisher's own capture clock -- it crossed the network as a
+        header extension rather than being reconstructed from arrival times, so
+        it carries no jitter, no SFU clock and no anchor.
+        """
+        return self.__capture_times.get(pts)
 
     async def receive(self, parameters: RTCRtpReceiveParameters) -> None:
         """
@@ -557,6 +581,15 @@ class RTCRtpReceiver:
                 packet.ssrc, sorted(self.__nack_generator.missing)
             )
 
+        self._rtp_packets += 1
+        act = packet.extensions.abs_capture_time
+        if act is not None:
+            self._abs_capture_packets += 1
+            self.__raw_capture[packet.timestamp] = act
+            if len(self.__raw_capture) > _CAPTURE_CACHE:
+                for k in list(self.__raw_capture)[: _CAPTURE_CACHE // 2]:
+                    del self.__raw_capture[k]
+
         # parse codec-specific information
         try:
             if packet.payload:
@@ -575,9 +608,16 @@ class RTCRtpReceiver:
 
         # if we have a complete encoded frame, decode it
         if encoded_frame is not None and self.__decoder_thread:
-            encoded_frame.timestamp = self.__timestamp_mapper.map(
-                encoded_frame.timestamp
-            )
+            raw_timestamp = encoded_frame.timestamp
+            encoded_frame.timestamp = self.__timestamp_mapper.map(raw_timestamp)
+            # Re-key onto the value the decoded frame will carry as `.pts`, so
+            # an application can look a frame's capture instant up directly.
+            capture = self.__raw_capture.pop(raw_timestamp, None)
+            if capture is not None:
+                self.__capture_times[encoded_frame.timestamp] = capture
+                if len(self.__capture_times) > _CAPTURE_CACHE:
+                    for k in list(self.__capture_times)[: _CAPTURE_CACHE // 2]:
+                        del self.__capture_times[k]
             self.__decoder_queue.put((codec, encoded_frame))
 
     async def _run_rtcp(self) -> None:

@@ -39,6 +39,11 @@ RTCP_PSFB_APP = 15
 
 @dataclass
 class HeaderExtensions:
+    #: 64-bit NTP (Q32.32) instant the frame was CAPTURED, not sent. Unlike
+    #: abs_send_time -- which every hop rewrites -- an SFU relays this value
+    #: untouched, so it survives timestamp rewriting and simulcast layer
+    #: switches. That is what makes it usable to pair pixels with sensor data.
+    abs_capture_time: Optional[int] = None
     abs_send_time: Optional[int] = None
     audio_level: Any = None
     mid: Any = None
@@ -64,6 +69,8 @@ class HeaderExtensionsMap:
                 ext.uri == "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time"
             ):
                 self.__ids.abs_send_time = ext.id
+            elif ext.uri == "http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time":
+                self.__ids.abs_capture_time = ext.id
             elif ext.uri == "urn:ietf:params:rtp-hdrext:toffset":
                 self.__ids.transmission_offset = ext.id
             elif ext.uri == "urn:ietf:params:rtp-hdrext:ssrc-audio-level":
@@ -87,6 +94,12 @@ class HeaderExtensionsMap:
                 values.rtp_stream_id = x_value.decode("ascii")
             elif x_id == self.__ids.abs_send_time:
                 values.abs_send_time = unpack("!L", b"\00" + x_value)[0]
+            elif x_id == self.__ids.abs_capture_time:
+                # 8 bytes is the "shortened" form: the NTP timestamp alone.
+                # The 16-byte form appends a signed estimated clock offset,
+                # which we do not use -- both ends here share one clock.
+                if len(x_value) >= 8:
+                    values.abs_capture_time = unpack("!Q", x_value[:8])[0]
             elif x_id == self.__ids.transmission_offset:
                 values.transmission_offset = unpack("!l", x_value + b"\00")[0] >> 8
             elif x_id == self.__ids.audio_level:
@@ -117,6 +130,10 @@ class HeaderExtensionsMap:
         if values.abs_send_time is not None and self.__ids.abs_send_time:
             extensions.append(
                 (self.__ids.abs_send_time, pack("!L", values.abs_send_time)[1:])
+            )
+        if values.abs_capture_time is not None and self.__ids.abs_capture_time:
+            extensions.append(
+                (self.__ids.abs_capture_time, pack("!Q", values.abs_capture_time))
             )
         if values.transmission_offset is not None and self.__ids.transmission_offset:
             extensions.append(

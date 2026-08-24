@@ -117,6 +117,10 @@ class RTCRtpSender:
         self.__started = False
         self.__stats = RTCStatsReport()
         self._timestamp_origin: Optional[int] = None
+        #: NTP (Q32.32) instant that pts == 0 corresponds to. Set by the
+        #: application when it stamps frames with a real capture clock; while
+        #: it is None no abs-capture-time is written and receivers fall back.
+        self.capture_epoch_ntp: Optional[int] = None
         self.__transport = transport
 
         # stats
@@ -377,6 +381,13 @@ class RTCRtpSender:
 
                 timestamp = uint32_add(timestamp_origin, enc_frame.timestamp)
 
+                # The epoch can live on the sender or on the track. The track
+                # wins the race: it exists before produce() completes, so
+                # arming there guarantees the very first packet is stamped.
+                capture_epoch = self.capture_epoch_ntp
+                if capture_epoch is None:
+                    capture_epoch = getattr(self.__track, "capture_epoch_ntp", None)
+
                 for i, payload in enumerate(enc_frame.payloads):
                     packet = RtpPacket(
                         payload_type=codec.payloadType,
@@ -391,6 +402,17 @@ class RTCRtpSender:
                     packet.extensions.abs_send_time = (
                         clock.current_ntp_time() >> 14
                     ) & 0x00FFFFFF
+                    if capture_epoch is not None:
+                        # EVERY packet, not just the first of a frame. Eight
+                        # bytes per packet (~0.5%) buys the guarantee that any
+                        # frame which reassembles carries a capture time: a
+                        # frame only decodes if its packets arrived, and every
+                        # packet has one. Coverage becomes structural rather
+                        # than probabilistic.
+                        packet.extensions.abs_capture_time = (
+                            capture_epoch
+                            + ((enc_frame.timestamp << 32) // codec.clockRate)
+                        ) & 0xFFFFFFFFFFFFFFFF
                     packet.extensions.mid = self.__mid
                     if enc_frame.audio_level is not None:
                         packet.extensions.audio_level = (False, -enc_frame.audio_level)
