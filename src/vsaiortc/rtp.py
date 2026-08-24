@@ -69,7 +69,10 @@ class HeaderExtensionsMap:
                 ext.uri == "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time"
             ):
                 self.__ids.abs_send_time = ext.id
-            elif ext.uri == "http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time":
+            elif (
+                ext.uri
+                == "http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time"
+            ):
                 self.__ids.abs_capture_time = ext.id
             elif ext.uri == "urn:ietf:params:rtp-hdrext:toffset":
                 self.__ids.transmission_offset = ext.id

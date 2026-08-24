@@ -1,8 +1,8 @@
 import fractions
 import math
 import sys
-from struct import pack
 from collections.abc import Callable
+from struct import pack
 
 from av import AudioFrame
 
@@ -746,7 +746,7 @@ class AbsCaptureTimeTest(TestCase):
         """
         extensions_map = self._map()
         value = 0x0123_4567_89AB_CDEF
-        extended = pack("!Q", value) + pack("!q", -5000)   # + clock offset
+        extended = pack("!Q", value) + pack("!q", -5000)  # + clock offset
 
         profile, data = pack_header_extensions([(6, extended)])
         values = extensions_map.get(profile, data)
