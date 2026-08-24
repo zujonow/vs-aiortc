@@ -59,6 +59,11 @@ HEADER_EXTENSIONS: dict[str, list[RTCRtpHeaderExtensionParameters]] = {
         RTCRtpHeaderExtensionParameters(
             id=3, uri="http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time"
         ),
+        # Offered, not just parsed. Negotiation is an INTERSECTION: a URI the
+        # local side never offers is stripped even when the router supports it.
+        RTCRtpHeaderExtensionParameters(
+            id=7, uri="http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time"
+        ),
     ],
 }
 

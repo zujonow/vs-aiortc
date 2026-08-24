@@ -1,6 +1,7 @@
 import fractions
 import math
 import sys
+from struct import pack
 from collections.abc import Callable
 
 from av import AudioFrame
@@ -699,3 +700,62 @@ class RtpUtilTest(TestCase):
             lambda n: math.sin(2 * math.pi * n / num_samples), num_samples, 0
         )
         self.assertEqual(rtp.compute_audio_level_dbov(sine_frame), -3)
+
+
+class AbsCaptureTimeTest(TestCase):
+    """
+    abs-capture-time carries when a frame was CAPTURED, as 64-bit NTP.
+
+    It matters because every other timing signal in the stack is contaminated
+    by the path: abs-send-time is rewritten at each hop, and an SFU rebuilds
+    RTCP sender reports against its own clock. This value is relayed untouched,
+    so it survives timestamp rewriting and simulcast layer switches -- which is
+    what lets a receiver pair pixels with sensor data from the same instant.
+    """
+
+    URI = "http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time"
+
+    def _map(self, ext_id: int = 6) -> rtp.HeaderExtensionsMap:
+        m = rtp.HeaderExtensionsMap()
+        m.configure(
+            RTCRtpParameters(
+                headerExtensions=[
+                    RTCRtpHeaderExtensionParameters(id=ext_id, uri=self.URI)
+                ]
+            )
+        )
+        return m
+
+    def test_round_trip(self) -> None:
+        extensions_map = self._map()
+        # 2026-08-23-ish as NTP Q32.32: full 64-bit range must survive.
+        value = 0xEB1F_2C4A_8000_0001
+
+        packet = RtpPacket(payload_type=100, sequence_number=1, timestamp=1234)
+        packet.extensions.abs_capture_time = value
+        data = packet.serialize(extensions_map)
+
+        parsed = RtpPacket.parse(data, extensions_map)
+        self.assertEqual(parsed.extensions.abs_capture_time, value)
+
+    def test_extended_form_is_truncated_not_rejected(self) -> None:
+        """
+        The 16-byte form appends a signed estimated clock offset. We do not use
+        it -- both ends share one clock -- but a peer that sends it must not
+        cost us the timestamp.
+        """
+        extensions_map = self._map()
+        value = 0x0123_4567_89AB_CDEF
+        extended = pack("!Q", value) + pack("!q", -5000)   # + clock offset
+
+        profile, data = pack_header_extensions([(6, extended)])
+        values = extensions_map.get(profile, data)
+        self.assertEqual(values.abs_capture_time, value)
+
+    def test_absent_when_not_negotiated(self) -> None:
+        """A URI the far side never negotiated must not be written."""
+        empty = rtp.HeaderExtensionsMap()
+        packet = RtpPacket(payload_type=100, sequence_number=1, timestamp=1234)
+        packet.extensions.abs_capture_time = 0xDEADBEEF
+        parsed = RtpPacket.parse(packet.serialize(empty), empty)
+        self.assertIsNone(parsed.extensions.abs_capture_time)
