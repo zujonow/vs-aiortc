@@ -50,7 +50,7 @@ from .stats import (
     RTCTransportStats,
 )
 
-__version__ = "0.0.16"
+__version__ = "0.0.17"
 
 # Set default logging handler to avoid "No handler found" warnings.
 logging.getLogger(__name__).addHandler(logging.NullHandler())
