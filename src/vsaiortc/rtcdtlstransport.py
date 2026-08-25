@@ -686,6 +686,8 @@ class RTCDtlsTransport(AsyncIOEventEmitter):
         ssrcs = set()
         for encoding in parameters.encodings:
             ssrcs.add(encoding.ssrc)
+            if encoding.rtx is not None and encoding.rtx.ssrc is not None:
+                ssrcs.add(encoding.rtx.ssrc)
 
         self._rtp_header_extensions_map.configure(parameters)
         self._rtp_router.register_receiver(
