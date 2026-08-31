@@ -54,6 +54,21 @@ logger = logging.getLogger(__name__)
 _CAPTURE_CACHE = 4096
 
 
+def _put_latest(q: asyncio.Queue, item: object) -> None:
+    """
+    Enqueue `item`, evicting the oldest entry first if the queue is full.
+
+    Schedule this with ``call_soon_threadsafe``, never await it: a suspended
+    producer holds a reference to the frame it is handing over.
+    """
+    while q.maxsize and q.full():
+        try:
+            q.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+    q.put_nowait(item)
+
+
 def decoder_worker(
     loop: asyncio.AbstractEventLoop,
     input_q: queue.Queue,
@@ -67,7 +82,7 @@ def decoder_worker(
         task = input_q.get()
         if task is None:
             # inform the track that is has ended
-            asyncio.run_coroutine_threadsafe(output_q.put(None), loop)
+            loop.call_soon_threadsafe(_put_latest, output_q, None)
             break
         codec, encoded_frame = task
 
@@ -77,13 +92,8 @@ def decoder_worker(
 
         for frame in decoder.decode(encoded_frame):
             # pass the decoded frame to the track
-            asyncio.run_coroutine_threadsafe(output_q.put(frame), loop)
-            if current_frame_queue.qsize() >= current_frame_queue.maxsize:
-                asyncio.run_coroutine_threadsafe(
-                    current_frame_queue.get(), loop
-                ).result()
-                current_frame_queue.task_done()
-            asyncio.run_coroutine_threadsafe(current_frame_queue.put(frame), loop)
+            loop.call_soon_threadsafe(_put_latest, output_q, frame)
+            loop.call_soon_threadsafe(_put_latest, current_frame_queue, frame)
 
     if decoder is not None:
         del decoder
@@ -213,7 +223,10 @@ class RemoteStreamTrack(MediaStreamTrack):
         self._current_frame_queue: asyncio.Queue = asyncio.Queue(track_buffer_size)
         if id is not None:
             self._id = id
-        self._queue: asyncio.Queue = asyncio.Queue()
+        # Video is latest-value-wins; dropping audio is audible.
+        self._queue: asyncio.Queue = asyncio.Queue(
+            track_buffer_size if kind == "video" else 0
+        )
 
     async def recv(self) -> Frame:
         """
@@ -230,6 +243,17 @@ class RemoteStreamTrack(MediaStreamTrack):
 
     async def current_frame(self) -> Frame:
         return await self._current_frame_queue.get()
+
+    def stop(self) -> None:
+        super().stop()
+        for q in (self._queue, self._current_frame_queue):
+            while True:
+                try:
+                    q.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+        # Wake a consumer already parked in recv().
+        _put_latest(self._queue, None)
 
 
 class TimestampMapper:
